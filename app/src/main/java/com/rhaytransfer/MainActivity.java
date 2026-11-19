@@ -13,13 +13,13 @@ import android.widget.*;
 
 public class MainActivity extends Activity {
 
-    private static final int BG = Color.rgb(7, 11, 20);
-    private static final int PANEL = Color.rgb(17, 25, 39);
-    private static final int PANEL_LIGHT = Color.rgb(24, 35, 52);
-    private static final int NEON = Color.rgb(0, 245, 160);
-    private static final int CYAN = Color.rgb(40, 205, 255);
-    private static final int WHITE = Color.rgb(240, 247, 255);
-    private static final int MUTED = Color.rgb(137, 155, 178);
+    private static final int BG = Color.rgb(5, 5, 7);
+    private static final int PANEL = Color.rgb(18, 18, 21);
+    private static final int PANEL_LIGHT = Color.rgb(31, 31, 35);
+    private static final int NEON = Color.rgb(245, 245, 245);
+    private static final int CYAN = Color.rgb(185, 185, 192);
+    private static final int WHITE = Color.rgb(250, 250, 250);
+    private static final int MUTED = Color.rgb(155, 155, 162);
 
     private LinearLayout content;
     private TextView selectedFile;
@@ -59,7 +59,7 @@ public class MainActivity extends Activity {
         brand.addView(subtitle);
         top.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
 
-        TextView version = text("v1.2", 11, CYAN, true);
+        TextView version = text("v1.4", 11, CYAN, true);
         version.setGravity(Gravity.CENTER);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(round(PANEL_LIGHT, 30, CYAN, 1));
@@ -72,7 +72,7 @@ public class MainActivity extends Activity {
 
         LinearLayout statusRow = new LinearLayout(this);
         statusRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView live = text("●  SISTEMA PRONTO", 10, NEON, true);
+        TextView live = text("●  RHAY TRANSFER", 10, NEON, true);
         live.setLetterSpacing(0.08f);
         statusRow.addView(live, new LinearLayout.LayoutParams(0, -2, 1));
         TextView local = text("REDE LOCAL", 9, CYAN, true);
@@ -118,7 +118,7 @@ public class MainActivity extends Activity {
         ipAddress.setHintTextColor(MUTED);
         ipAddress.setPadding(dp(13), 0, dp(13), 0);
         ipAddress.setSelectAllOnFocus(true);
-        ipAddress.setBackground(round(PANEL_LIGHT, 12, Color.rgb(43, 61, 83), 1));
+        ipAddress.setBackground(round(PANEL_LIGHT, 12, Color.rgb(75, 75, 82), 1));
         connection.addView(ipAddress, new LinearLayout.LayoutParams(-1, dp(49)));
         spaceIn(connection, 12);
 
@@ -234,7 +234,7 @@ public class MainActivity extends Activity {
     private LinearLayout card(int color) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setBackground(round(color, 18, Color.rgb(36, 53, 74), 1));
+        box.setBackground(round(color, 18, Color.rgb(58, 58, 64), 1));
         return box;
     }
 
