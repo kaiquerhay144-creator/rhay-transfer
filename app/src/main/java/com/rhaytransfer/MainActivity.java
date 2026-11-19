@@ -6,154 +6,290 @@ import android.content.Intent;
 import android.net.Uri;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.*;
 
 public class MainActivity extends Activity {
 
-    LinearLayout main;
-    TextView selectedFile;
-    EditText ipAddress;
+    private static final int BG = Color.rgb(7, 11, 20);
+    private static final int PANEL = Color.rgb(17, 25, 39);
+    private static final int PANEL_LIGHT = Color.rgb(24, 35, 52);
+    private static final int NEON = Color.rgb(0, 245, 160);
+    private static final int CYAN = Color.rgb(40, 205, 255);
+    private static final int WHITE = Color.rgb(240, 247, 255);
+    private static final int MUTED = Color.rgb(137, 155, 178);
 
-    int background = Color.rgb(13, 16, 25);
-    int panel = Color.rgb(25, 30, 43);
-    int green = Color.rgb(0, 220, 145);
-    int white = Color.WHITE;
+    private LinearLayout content;
+    private TextView selectedFile;
+    private EditText ipAddress;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
+        getWindow().getDecorView().setSystemUiVisibility(0);
 
         ScrollView scroll = new ScrollView(this);
-        main = new LinearLayout(this);
-        main.setOrientation(LinearLayout.VERTICAL);
-        main.setPadding(24, 35, 24, 30);
-        main.setBackgroundColor(background);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(BG);
 
-        scroll.addView(main);
+        content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(18), dp(20), dp(28));
+        scroll.addView(content);
         setContentView(scroll);
 
-        addText("RHAY TRANSFER", 28, green, true);
-        addText("TRANSFERÊNCIA INTELIGENTE", 11, white, true);
-        addSpace(25);
+        buildDashboard();
+    }
 
-        addCardTitle("CONEXÃO COM PS4");
+    private void buildDashboard() {
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.setOrientation(LinearLayout.HORIZONTAL);
 
+        LinearLayout brand = new LinearLayout(this);
+        brand.setOrientation(LinearLayout.VERTICAL);
+        TextView name = text("RHAY TRANSFER", 22, NEON, true);
+        TextView subtitle = text("LOCAL FILE COMMAND CENTER", 9, MUTED, true);
+        subtitle.setLetterSpacing(0.13f);
+        brand.addView(name);
+        brand.addView(subtitle);
+        top.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
+
+        TextView version = text("v1.1", 11, CYAN, true);
+        version.setGravity(Gravity.CENTER);
+        version.setPadding(dp(12), dp(7), dp(12), dp(7));
+        version.setBackground(round(PANEL_LIGHT, 30, CYAN, 1));
+        top.addView(version);
+        content.addView(top);
+
+        space(24);
+        LinearLayout hero = card(PANEL);
+        hero.setPadding(dp(18), dp(18), dp(18), dp(18));
+
+        LinearLayout statusRow = new LinearLayout(this);
+        statusRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView live = text("●  SISTEMA PRONTO", 10, NEON, true);
+        live.setLetterSpacing(0.08f);
+        statusRow.addView(live, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView local = text("REDE LOCAL", 9, CYAN, true);
+        statusRow.addView(local);
+        hero.addView(statusRow);
+
+        spaceIn(hero, 15);
+        hero.addView(text("Envie seus arquivos.", 25, WHITE, true));
+        hero.addView(text("Seu PS4. Seu celular. Uma conexão.", 13, MUTED, false));
+        spaceIn(hero, 18);
+
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+        stats.addView(statBlock("0 MB/s", "VELOCIDADE", NEON),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        stats.addView(statBlock("0", "ENVIOS", CYAN),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        hero.addView(stats);
+        content.addView(hero);
+
+        section("CONEXÃO DO CONSOLE", "01");
+        LinearLayout connection = card(PANEL);
+        connection.setPadding(dp(16), dp(15), dp(16), dp(16));
+
+        LinearLayout connectionHead = new LinearLayout(this);
+        connectionHead.setGravity(Gravity.CENTER_VERTICAL);
+        connectionHead.addView(text("PlayStation 4", 16, WHITE, true),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        TextView waiting = text("●  AGUARDANDO", 9, MUTED, true);
+        waiting.setPadding(dp(9), dp(6), dp(9), dp(6));
+        waiting.setBackground(round(PANEL_LIGHT, 20, MUTED, 1));
+        connectionHead.addView(waiting);
+        connection.addView(connectionHead);
+
+        spaceIn(connection, 14);
+        connection.addView(text("ENDEREÇO IP", 9, MUTED, true));
+        spaceIn(connection, 6);
         ipAddress = new EditText(this);
         ipAddress.setSingleLine(true);
         ipAddress.setText("192.168.1.224");
-        ipAddress.setTextColor(white);
-        ipAddress.setHintTextColor(Color.GRAY);
-        ipAddress.setHint("Endereço IP do PS4");
-        ipAddress.setPadding(18, 12, 18, 12);
-        ipAddress.setBackgroundColor(panel);
-        main.addView(ipAddress);
+        ipAddress.setTextSize(15);
+        ipAddress.setTextColor(WHITE);
+        ipAddress.setHintTextColor(MUTED);
+        ipAddress.setPadding(dp(13), 0, dp(13), 0);
+        ipAddress.setSelectAllOnFocus(true);
+        ipAddress.setBackground(round(PANEL_LIGHT, 12, Color.rgb(43, 61, 83), 1));
+        connection.addView(ipAddress, new LinearLayout.LayoutParams(-1, dp(49)));
+        spaceIn(connection, 12);
 
-        addSpace(12);
+        Button connect = button("CONECTAR AO PS4", NEON, BG);
+        connection.addView(connect, new LinearLayout.LayoutParams(-1, dp(49)));
+        connect.setOnClickListener(v -> Toast.makeText(this,
+                "IP salvo. O serviço receptor do PS4 ainda precisa ser configurado.",
+                Toast.LENGTH_LONG).show());
+        content.addView(connection);
 
-        addButton("CONECTAR AO PS4", green, background, v -> {
-            Toast.makeText(this,
-                "IP configurado. Aguardando serviço no PS4.",
-                Toast.LENGTH_LONG).show();
-        });
+        section("CENTRAL DE TRANSFERÊNCIA", "02");
+        LinearLayout transfer = card(PANEL);
+        transfer.setPadding(dp(16), dp(16), dp(16), dp(16));
+        transfer.addView(text("Escolha o que deseja enviar", 16, WHITE, true));
+        spaceIn(transfer, 5);
+        transfer.addView(text("PKG, vídeos, músicas, fotos e documentos", 12, MUTED, false));
+        spaceIn(transfer, 15);
 
-        addSpace(25);
-        addCardTitle("TRANSFERÊNCIA DE ARQUIVOS");
+        selectedFile = text("Nenhum arquivo selecionado", 12, MUTED, false);
+        selectedFile.setPadding(dp(12), dp(13), dp(12), dp(13));
+        selectedFile.setBackground(round(PANEL_LIGHT, 12, Color.TRANSPARENT, 0));
+        transfer.addView(selectedFile);
+        spaceIn(transfer, 12);
 
-        selectedFile = addText(
-            "Nenhum arquivo selecionado",
-            14, Color.LTGRAY, false
-        );
+        Button choose = button("＋   ESCOLHER ARQUIVO", PANEL_LIGHT, WHITE);
+        transfer.addView(choose, new LinearLayout.LayoutParams(-1, dp(48)));
+        choose.setOnClickListener(v -> chooseFile());
 
-        addSpace(12);
+        spaceIn(transfer, 10);
+        Button send = button("INICIAR TRANSFERÊNCIA  →", NEON, BG);
+        transfer.addView(send, new LinearLayout.LayoutParams(-1, dp(51)));
+        send.setOnClickListener(v -> Toast.makeText(this,
+                "A transferência real será ativada após configurar o receptor no PS4.",
+                Toast.LENGTH_LONG).show());
+        content.addView(transfer);
 
-        addButton("＋ ESCOLHER ARQUIVO", panel, white, v -> {
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            intent.setType("*/*");
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            startActivityForResult(intent, 100);
-        });
+        section("ATIVIDADE", "03");
+        LinearLayout activity = card(PANEL);
+        activity.setPadding(dp(16), dp(15), dp(16), dp(15));
+        LinearLayout activityRow = new LinearLayout(this);
+        activityRow.setGravity(Gravity.CENTER_VERTICAL);
+        activityRow.addView(text("Velocidade atual", 13, WHITE, true),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        activityRow.addView(text("0.00 MB/s", 17, NEON, true));
+        activity.addView(activityRow);
+        spaceIn(activity, 12);
+        View track = new View(this);
+        track.setBackground(round(PANEL_LIGHT, 20, Color.TRANSPARENT, 0));
+        activity.addView(track, new LinearLayout.LayoutParams(-1, dp(7)));
+        spaceIn(activity, 12);
+        activity.addView(text("Nenhuma transferência em andamento", 11, MUTED, false));
+        content.addView(activity);
 
-        addSpace(15);
+        section("ATALHOS", "04");
+        LinearLayout shortcuts = new LinearLayout(this);
+        shortcuts.setOrientation(LinearLayout.HORIZONTAL);
+        shortcuts.addView(shortcut("▣", "Arquivos"),
+                new LinearLayout.LayoutParams(0, dp(82), 1));
+        shortcuts.addView(shortcut("↗", "Enviar"),
+                new LinearLayout.LayoutParams(0, dp(82), 1));
+        shortcuts.addView(shortcut("◷", "Histórico"),
+                new LinearLayout.LayoutParams(0, dp(82), 1));
+        content.addView(shortcuts);
 
-        addButton("ENVIAR PARA PS4", green, background, v -> {
-            Toast.makeText(this,
-                "Selecione um arquivo e configure a conexão do console.",
-                Toast.LENGTH_LONG).show();
-        });
-
-        addSpace(25);
-        addCardTitle("VELOCIDADE DE TRANSFERÊNCIA");
-
-        addText("0 MB/s", 34, green, true);
-        addText("Aguardando transferência", 13, Color.LTGRAY, false);
-
-        addSpace(25);
-        addCardTitle("HISTÓRICO");
-
-        addText("Nenhuma transferência realizada.",
-            13, Color.LTGRAY, false);
-
-        addSpace(30);
-        TextView footer = addText(
-            "RHAY TRANSFER • VERSÃO 1.0",
-            11, Color.GRAY, true
-        );
+        space(22);
+        TextView footer = text("RHAY TRANSFER  •  FEITO PARA SUA REDE", 9, MUTED, true);
         footer.setGravity(Gravity.CENTER);
+        footer.setLetterSpacing(0.08f);
+        content.addView(footer);
     }
 
-    TextView addText(String text, int size, int color, boolean bold) {
-        TextView view = new TextView(this);
-        view.setText(text);
-        view.setTextSize(size);
-        view.setTextColor(color);
-        if (bold) view.setTypeface(null, Typeface.BOLD);
-        view.setPadding(0, 5, 0, 5);
-        main.addView(view);
-        return view;
+    private void chooseFile() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.setType("*/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(intent, 100);
     }
 
-    void addCardTitle(String text) {
-        TextView view = addText(text, 15, green, true);
-        view.setPadding(0, 10, 0, 12);
+    private LinearLayout statBlock(String value, String label, int color) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(text(value, 21, color, true));
+        box.addView(text(label, 9, MUTED, true));
+        return box;
     }
 
-    void addSpace(int height) {
-        View space = new View(this);
-        main.addView(space,
-            new LinearLayout.LayoutParams(1, height));
+    private LinearLayout shortcut(String symbol, String label) {
+        LinearLayout box = card(PANEL_LIGHT);
+        box.setGravity(Gravity.CENTER);
+        box.setOrientation(LinearLayout.VERTICAL);
+        TextView icon = text(symbol, 23, NEON, true);
+        icon.setGravity(Gravity.CENTER);
+        box.addView(icon);
+        TextView caption = text(label, 10, WHITE, true);
+        caption.setGravity(Gravity.CENTER);
+        box.addView(caption);
+        LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) box.getLayoutParams();
+        return box;
     }
 
-    void addButton(String text, int color, int textColor,
-                   View.OnClickListener listener) {
-        Button button = new Button(this);
-        button.setText(text);
-        button.setTextColor(textColor);
-        button.setTextSize(13);
-        button.setTypeface(null, Typeface.BOLD);
-        button.setBackgroundTintList(
-            android.content.res.ColorStateList.valueOf(color));
-        button.setOnClickListener(listener);
+    private void section(String title, String number) {
+        space(21);
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView heading = text(title, 11, WHITE, true);
+        heading.setLetterSpacing(0.1f);
+        row.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
+        row.addView(text(number, 10, CYAN, true));
+        content.addView(row);
+        space(9);
+    }
 
-        LinearLayout.LayoutParams params =
-            new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 58);
-        main.addView(button, params);
+    private LinearLayout card(int color) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setBackground(round(color, 18, Color.rgb(36, 53, 74), 1));
+        return box;
+    }
+
+    private Button button(String label, int color, int textColor) {
+        Button b = new Button(this);
+        b.setText(label);
+        b.setAllCaps(false);
+        b.setTextSize(12);
+        b.setTextColor(textColor);
+        b.setTypeface(null, Typeface.BOLD);
+        b.setLetterSpacing(0.03f);
+        b.setBackground(round(color, 13, color, 0));
+        return b;
+    }
+
+    private TextView text(String value, int size, int color, boolean bold) {
+        TextView t = new TextView(this);
+        t.setText(value);
+        t.setTextSize(size);
+        t.setTextColor(color);
+        if (bold) t.setTypeface(null, Typeface.BOLD);
+        return t;
+    }
+
+    private GradientDrawable round(int color, int radius, int strokeColor, int strokeWidth) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(dp(radius));
+        if (strokeWidth > 0) d.setStroke(dp(strokeWidth), strokeColor);
+        return d;
+    }
+
+    private void space(int height) {
+        View v = new View(this);
+        content.addView(v, new LinearLayout.LayoutParams(1, dp(height)));
+    }
+
+    private void spaceIn(LinearLayout parent, int height) {
+        View v = new View(this);
+        parent.addView(v, new LinearLayout.LayoutParams(1, dp(height)));
+    }
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 
     @Override
-    protected void onActivityResult(int requestCode,
-            int resultCode, Intent data) {
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == 100 && resultCode == RESULT_OK
-                && data != null) {
+        if (requestCode == 100 && resultCode == RESULT_OK && data != null) {
             Uri uri = data.getData();
             if (uri != null) {
-                selectedFile.setText(
-                    "Arquivo selecionado:\n" +
-                    uri.getLastPathSegment());
+                String path = uri.getLastPathSegment();
+                selectedFile.setText("ARQUIVO SELECIONADO\n" + (path == null ? "Arquivo pronto" : path));
+                selectedFile.setTextColor(NEON);
             }
         }
     }
