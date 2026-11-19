@@ -10,12 +10,27 @@ android {
         applicationId 'com.rhaytransfer'
         minSdk 26
         targetSdk 35
-        versionCode 2
-        versionName '1.2'
+        versionCode 3
+        versionName '1.3'
     }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
+
+tasks.register('generateLauncherIcon') {
+    def iconSource = file('icon_base64.txt')
+    def iconOutput = file('src/main/res/mipmap-nodpi/ic_launcher.webp')
+    inputs.file iconSource
+    outputs.file iconOutput
+    doLast {
+        iconOutput.parentFile.mkdirs()
+        iconOutput.bytes = java.util.Base64.decoder.decode(iconSource.text.trim())
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn tasks.named('generateLauncherIcon')
 }
