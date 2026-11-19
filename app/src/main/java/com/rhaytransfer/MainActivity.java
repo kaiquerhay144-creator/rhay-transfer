@@ -59,7 +59,7 @@ public class MainActivity extends Activity {
         brand.addView(subtitle);
         top.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
 
-        TextView version = text("v1.1", 11, CYAN, true);
+        TextView version = text("v1.2", 11, CYAN, true);
         version.setGravity(Gravity.CENTER);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(round(PANEL_LIGHT, 30, CYAN, 1));
