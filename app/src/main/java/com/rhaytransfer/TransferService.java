@@ -13,15 +13,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class TransferService extends Service {
-    private static final String CHANNEL="rhay_transfer_running";
-    private static final int NOTIFICATION_ID=2201;
+    private static final String CHANNEL="rhay_transfer_running_v25";
+    private static final int NOTIFICATION_ID=2202;
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private PowerManager.WakeLock cpuLock;
     private android.net.wifi.WifiManager.WifiLock wifiLock;
     private volatile boolean running=false;
     private final DecimalFormat df=new DecimalFormat("0.0");
 
-    @Override public void onCreate(){super.onCreate();createChannel();}
+    @Override public void onCreate(){super.onCreate();NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);nm.cancel(2201);if(Build.VERSION.SDK_INT>=26)nm.deleteNotificationChannel("rhay_transfer_running");createChannel();}
     @Override public int onStartCommand(Intent intent,int flags,int startId){
         if(intent==null){stopSelf(startId);return START_NOT_STICKY;}
         String host=intent.getStringExtra("host");
@@ -100,7 +100,7 @@ public class TransferService extends Service {
     private Notification buildNotification(String title,String body,int pct,boolean ongoing){
         Intent open=new Intent(this,MainActivity.class);PendingIntent pi=PendingIntent.getActivity(this,1,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,CHANNEL):new Notification.Builder(this);
-        b.setSmallIcon(R.drawable.ic_stat_transfer).setContentTitle(title).setContentText(body).setContentIntent(pi).setOnlyAlertOnce(true).setOngoing(ongoing).setAutoCancel(!ongoing).setCategory(Notification.CATEGORY_PROGRESS);
+        b.setSmallIcon(R.drawable.ic_stat_transfer_v25).setContentTitle(title).setContentText(body).setContentIntent(pi).setOnlyAlertOnce(true).setOngoing(ongoing).setAutoCancel(!ongoing).setCategory(Notification.CATEGORY_PROGRESS);
         if(ongoing)b.setProgress(100,Math.max(0,Math.min(100,pct)),false);
         return b.build();
     }
