@@ -178,7 +178,8 @@ public class MainActivity extends Activity {
     private void space(int h){View v=new View(this);content.addView(v,new LinearLayout.LayoutParams(1,dp(h)));}
     private void spaceIn(LinearLayout p,int h){View v=new View(this);p.addView(v,new LinearLayout.LayoutParams(1,dp(h)));}
     private int dp(int v){return (int)(v*getResources().getDisplayMetrics().density+.5f);}
-    private void persistReadPermission(Uri uri){try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}}\n    @Override protected void onActivityResult(int req,int result,Intent data){super.onActivityResult(req,result,data);if(result!=RESULT_OK||data==null)return;
+    private void persistReadPermission(Uri uri){try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}}
+    @Override protected void onActivityResult(int req,int result,Intent data){super.onActivityResult(req,result,data);if(result!=RESULT_OK||data==null)return;
         if(req==PICK){Uri u=data.getData();if(u!=null){persistReadPermission(u);selectedUri=u;queue.clear();queueNames.clear();queue.add(u);queueNames.add(fileName(u));selectedFile.setText("1 arquivo: "+fileName(u));}}
         else if(req==PICK_MULTI){queue.clear();queueNames.clear();if(data.getClipData()!=null){for(int i=0;i<data.getClipData().getItemCount();i++){Uri u=data.getClipData().getItemAt(i).getUri();persistReadPermission(u);queue.add(u);queueNames.add(fileName(u));}}else if(data.getData()!=null){persistReadPermission(data.getData());queue.add(data.getData());queueNames.add(fileName(data.getData()));}selectedUri=null;selectedFile.setText(queue.size()+" arquivo(s) na fila");}
     }
