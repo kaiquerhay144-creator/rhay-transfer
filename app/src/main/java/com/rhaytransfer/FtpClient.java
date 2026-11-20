@@ -23,7 +23,7 @@ public final class FtpClient {
     private Socket dataSocket(String pasv)throws IOException{
         Matcher m=Pattern.compile("(\\d+),(\\d+),(\\d+),(\\d+),(\\d+),(\\d+)").matcher(pasv);if(!m.find())throw new IOException("Resposta PASV inválida: "+pasv);
         String h=m.group(1)+"."+m.group(2)+"."+m.group(3)+"."+m.group(4);int p=Integer.parseInt(m.group(5))*256+Integer.parseInt(m.group(6));
-        Socket s=new Socket();s.setSendBufferSize(1024*1024);s.connect(new InetSocketAddress(h,p),10000);s.setSoTimeout(30000);s.setTcpNoDelay(true);return s;
+        Socket s=new Socket();s.setSendBufferSize(4*1024*1024);s.connect(new InetSocketAddress(h,p),10000);s.setSoTimeout(30000);return s;
     }
     public void upload(UriSource src,String remote,Progress progress)throws IOException{
         String type=command("TYPE I");if(!type.startsWith("2"))throw new IOException("Não foi possível ativar modo binário: "+type);
@@ -32,7 +32,7 @@ public final class FtpClient {
         if(!cwd.startsWith("2")){String parent=dir.substring(0,dir.lastIndexOf('/'));String folder=dir.substring(dir.lastIndexOf('/')+1);String pc=command("CWD "+parent);if(!pc.startsWith("2"))throw new IOException("Sem acesso a "+dir+": "+pc);command("MKD "+folder);cwd=command("CWD "+dir);if(!cwd.startsWith("2"))throw new IOException("Não foi possível criar/acessar "+dir+": "+cwd);}
         Socket data=dataSocket(command("PASV"));String stor=command("STOR "+name);if(!stor.startsWith("1")){data.close();throw new IOException("PS4 recusou o envio: "+stor);}
         long total=src.length(),sent=0;
-        try(InputStream in=src.open();OutputStream out=data.getOutputStream()){byte[] buf=new byte[512*1024];int n;while((n=in.read(buf))!=-1){out.write(buf,0,n);sent+=n;if(progress!=null)progress.onProgress(sent,total);}out.flush();}finally{data.close();}
+        try(InputStream in=new BufferedInputStream(src.open(),1024*1024);OutputStream out=data.getOutputStream()){byte[] buf=new byte[1024*1024];int n;while((n=in.read(buf))!=-1){out.write(buf,0,n);sent+=n;if(progress!=null)progress.onProgress(sent,total);}out.flush();}finally{data.close();}
         String done=response();if(!done.startsWith("2"))throw new IOException("Falha ao concluir envio: "+done);
     }
     public List<RemoteEntry> listDirectory(String path)throws IOException{
