@@ -70,7 +70,7 @@ public class MainActivity extends Activity {
         brand.addView(subtitle);
         top.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
 
-        TextView version = text("v1.4", 11, CYAN, true);
+        TextView version = text("v1.7", 11, CYAN, true);
         version.setGravity(Gravity.CENTER);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(round(PANEL_LIGHT, 30, CYAN, 1));
@@ -145,6 +145,8 @@ public class MainActivity extends Activity {
         transfer.addView(text("Escolha o que deseja enviar", 16, WHITE, true));
         spaceIn(transfer, 5);
         transfer.addView(text("PKG, vídeos, músicas, fotos e documentos", 12, MUTED, false));
+        spaceIn(transfer, 4);
+        transfer.addView(text("PKG → /data/pkg   •   Outros arquivos → /data/Rhay Transfer", 10, CYAN, false));
         spaceIn(transfer, 15);
 
         selectedFile = text("Nenhum arquivo selecionado", 12, MUTED, false);
@@ -259,13 +261,11 @@ public class MainActivity extends Activity {
             Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show(); return;
         }
         String name = getFileName(selectedUri);
-        if (!name.toLowerCase().endsWith(".pkg")) {
-            Toast.makeText(this, "Nesta primeira etapa, o envio automático está limitado a arquivos PKG.", Toast.LENGTH_LONG).show();
-            return;
-        }
         final Uri uri = selectedUri;
-        final String remote = "/data/pkg/" + name;
-        Toast.makeText(this, "Enviando PKG para /data/pkg no PS4...", Toast.LENGTH_LONG).show();
+        final boolean isPkg = name.toLowerCase().endsWith(".pkg");
+        final String directory = isPkg ? "/data/pkg" : "/data/Rhay Transfer";
+        final String remote = directory + "/" + name;
+        Toast.makeText(this, "Enviando arquivo para " + directory + " no PS4...", Toast.LENGTH_LONG).show();
         io.execute(() -> {
             FtpClient ftp = new FtpClient(ip, 2121);
             try {
@@ -283,7 +283,10 @@ public class MainActivity extends Activity {
                         selectedFile.setText("ENVIANDO: " + name + "\\n" + sent / 1024 / 1024 + " MB enviados")));
                 main.post(() -> {
                     selectedFile.setText("ENVIO CONCLUÍDO\\n" + name);
-                    Toast.makeText(this, "PKG enviado para /data/pkg. Agora instale pelo Package Installer do PS4.", Toast.LENGTH_LONG).show();
+                    String message = isPkg
+                            ? "PKG enviado para /data/pkg. Agora instale pelo Package Installer do PS4."
+                            : "Arquivo enviado para /data/Rhay Transfer no PS4.";
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                 });
             } catch (Exception e) {
                 main.post(() -> Toast.makeText(this, "Falha no envio: " + e.getMessage(), Toast.LENGTH_LONG).show());
