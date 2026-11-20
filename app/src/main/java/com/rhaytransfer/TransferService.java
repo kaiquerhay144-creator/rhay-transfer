@@ -43,7 +43,7 @@ public class TransferService extends Service {
     }
     private void acquireLocks(){
         try{PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);cpuLock=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"RhayTransfer:Cpu");cpuLock.acquire(6*60*60*1000L);}catch(Exception ignored){}
-        try{android.net.wifi.WifiManager wm=(android.net.wifi.WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);wifiLock=wm.createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF,"RhayTransfer:Wifi");wifiLock.acquire(6*60*60*1000L);}catch(Exception ignored){}
+        try{android.net.wifi.WifiManager wm=(android.net.wifi.WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);wifiLock=wm.createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF,"RhayTransfer:Wifi");wifiLock.acquire();}catch(Exception ignored){}
     }
     private void transfer(String host,ArrayList<Uri> uris,ArrayList<String> names,String common){
         FtpClient ftp=null;int completed=0;
