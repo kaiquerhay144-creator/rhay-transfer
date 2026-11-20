@@ -9,8 +9,8 @@
     <application
         android:allowBackup="false"
         android:label="PS4 Transfer"
-        android:icon="@drawable/ic_launcher_gamer"
-        android:roundIcon="@drawable/ic_launcher_gamer"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:usesCleartextTraffic="true">
         <activity android:name=".MainActivity" android:exported="true">
