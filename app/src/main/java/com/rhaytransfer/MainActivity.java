@@ -40,7 +40,7 @@ public class MainActivity extends Activity {
     private SharedPreferences prefs;
     private LinearLayout content;
     private EditText ipAddress;
-    private TextView connectionStatus, selectedFile, speedValue, progressLabel, etaLabel, transferStatus, sentCount;
+    private TextView connectionStatus, selectedFile, speedValue, progressLabel, etaLabel, transferStatus, sentCount, heroSpeed, heroSent;
     private ProgressBar progressBar;
     private Uri selectedUri;
     private String commonDirectory="/data/Rhay Transfer";
@@ -68,7 +68,7 @@ public class MainActivity extends Activity {
         LinearLayout hero=card(PANEL); hero.setPadding(dp(17),dp(17),dp(17),dp(17));
         LinearLayout row=new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.addView(text("●  RHAY TRANSFER",10,WHITE,true),new LinearLayout.LayoutParams(0,-2,1)); row.addView(text("REDE LOCAL",9,SILVER,true)); hero.addView(row);
         spaceIn(hero,12); hero.addView(text("Seu centro de transferências.",22,WHITE,true)); hero.addView(text("Celular ⇄ PlayStation 4",12,MUTED,false)); spaceIn(hero,16);
-        LinearLayout stats=new LinearLayout(this); stats.addView(stat("0.00 MB/s","VELOCIDADE"),new LinearLayout.LayoutParams(0,-2,1)); stats.addView(stat("0","ENVIOS"),new LinearLayout.LayoutParams(0,-2,1)); hero.addView(stats); content.addView(hero);
+        LinearLayout stats=new LinearLayout(this); stats.addView(stat("0.00 MB/s","VELOCIDADE",true),new LinearLayout.LayoutParams(0,-2,1)); stats.addView(stat(String.valueOf(prefs.getInt("sent_count",0)),"ENVIOS",false),new LinearLayout.LayoutParams(0,-2,1)); hero.addView(stats); content.addView(hero);
         section("CONEXÃO DO CONSOLE","01"); LinearLayout conn=card(PANEL); conn.setPadding(dp(15),dp(15),dp(15),dp(15));
         LinearLayout cr=new LinearLayout(this); cr.setGravity(Gravity.CENTER_VERTICAL); cr.addView(text("PlayStation 4",16,WHITE,true),new LinearLayout.LayoutParams(0,-2,1));
         connectionStatus=text("●  NÃO TESTADO",9,MUTED,true); connectionStatus.setPadding(dp(8),dp(6),dp(8),dp(6)); connectionStatus.setBackground(round(LIGHT,20,MUTED,1)); cr.addView(connectionStatus); conn.addView(cr);
@@ -144,11 +144,11 @@ public class MainActivity extends Activity {
                         long now=System.currentTimeMillis();if(now-lastTime[0]>=250||sent==size){long delta=sent-lastBytes[0];double speed=delta/1024d/1024d/Math.max(.001,(now-lastTime[0])/1000d);lastBytes[0]=sent;lastTime[0]=now;
                             int percent=size>0?(int)Math.min(100,sent*100/size):0;long remaining=size>sent&&speed>0?(long)((size-sent)/(speed*1024d*1024d)): -1;
                             String eta=remaining<0?"Tempo restante: —":"Tempo restante: "+formatTime(remaining);
-                            main.post(()->{speedValue.setText(df.format(speed)+" MB/s");progressBar.setProgress(percent);progressLabel.setText(size>0?percent+"%  •  "+human(sent)+" / "+human(size):human(sent)+" enviados");etaLabel.setText(eta);});
+                            main.post(()->{speedValue.setText(df.format(speed)+" MB/s");if(heroSpeed!=null)heroSpeed.setText(df.format(speed)+" MB/s");progressBar.setProgress(percent);progressLabel.setText(size>0?percent+"%  •  "+human(sent)+" / "+human(size):human(sent)+" enviados");etaLabel.setText(eta);});
                         }});
                     ok++;addHistory(name,folder,true,total);
                 }
-                final int done=ok;main.post(()->{sending=false;transferStatus.setText("Concluído: "+done+" arquivo(s) enviado(s)");progressBar.setProgress(100);progressLabel.setText("100%");etaLabel.setText("Fila concluída");selectedFile.setText("ENVIO CONCLUÍDO — "+done+" arquivo(s)");toast("Transferência concluída! Arquivos enviados ao PS4.");notifyDone("Transferência concluída",done+" arquivo(s) enviados ao PS4.");queue.clear();queueNames.clear();selectedUri=null;});
+                final int done=ok;main.post(()->{sending=false;transferStatus.setText("Concluído: "+done+" arquivo(s) enviado(s)");progressBar.setProgress(100);progressLabel.setText("100%");etaLabel.setText("Fila concluída");selectedFile.setText("ENVIO CONCLUÍDO — "+done+" arquivo(s)");toast("Transferência concluída! Arquivos enviados ao PS4.");notifyDone("Transferência concluída",done+" arquivo(s) enviados ao PS4.");queue.clear();queueNames.clear();selectedUri=null;if(heroSpeed!=null)heroSpeed.setText("0.00 MB/s");if(heroSent!=null)heroSent.setText(String.valueOf(prefs.getInt("sent_count",0)));});
             }catch(Exception e){String error=e.getMessage()==null?"Erro desconhecido":e.getMessage();addHistory("Fila",commonDirectory,false,0);main.post(()->{sending=false;transferStatus.setText("Falha: "+error);etaLabel.setText("Verifique a conexão e tente novamente.");toast("Falha no envio: "+error);notifyDone("Falha na transferência",error);});}
             finally{if(ftp!=null)ftp.close();}
         });
@@ -171,7 +171,7 @@ public class MainActivity extends Activity {
             dlg.setNegativeButton("Fechar",null);if(!path.equals("/"))dlg.setNeutralButton("Voltar",(d,w)->{int slash=path.lastIndexOf('/');browseDirectory(host,slash<=0?"/":path.substring(0,slash));});dlg.show();
         });}catch(Exception e){main.post(()->toast("Não foi possível listar "+path+": "+e.getMessage()));}finally{f.close();}});
     }
-    private void rebuild(){buildDashboard();}
+    private void rebuild(){content.removeAllViews();buildDashboard();}
     private void notifyDone(String title,String message){
         try{NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);Intent i=new Intent(this,MainActivity.class);PendingIntent pi=PendingIntent.getActivity(this,0,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
             android.app.Notification.Builder n=Build.VERSION.SDK_INT>=26?new android.app.Notification.Builder(this,"rhay_transfer"):new android.app.Notification.Builder(this);
@@ -183,7 +183,7 @@ public class MainActivity extends Activity {
     private String formatTime(long s){return s>=3600?(s/3600)+"h "+(s%3600/60)+"m":s>=60?(s/60)+"m "+(s%60)+"s":s+"s";}
     private long parseLong(String s){try{return Long.parseLong(s);}catch(Exception e){return 0;}}
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
-    private LinearLayout stat(String value,String label){LinearLayout x=new LinearLayout(this);x.setOrientation(1);x.addView(text(value,20,WHITE,true));x.addView(text(label,9,MUTED,true));return x;}
+    private LinearLayout stat(String value,String label,boolean speed){LinearLayout x=new LinearLayout(this);x.setOrientation(1);TextView v=text(value,20,WHITE,true);if(speed)heroSpeed=v;else heroSent=v;x.addView(v);x.addView(text(label,9,MUTED,true));return x;}
     private void section(String s,String n){space(19);LinearLayout r=new LinearLayout(this);r.setGravity(Gravity.CENTER_VERTICAL);r.addView(text(s,10,WHITE,true),new LinearLayout.LayoutParams(0,-2,1));r.addView(text(n,10,SILVER,true));content.addView(r);space(8);}
     private LinearLayout card(int c){LinearLayout x=new LinearLayout(this);x.setOrientation(1);x.setBackground(round(c,17,Color.rgb(58,58,64),1));return x;}
     private Button button(String s,int bg,int fg){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextSize(11);b.setTextColor(fg);b.setTypeface(null,Typeface.BOLD);b.setBackground(round(bg,12,bg,0));return b;}
