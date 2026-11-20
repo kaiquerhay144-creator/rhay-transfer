@@ -10,6 +10,13 @@ import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.*;
+import android.database.Cursor;
+import android.provider.OpenableColumns;
+import android.os.Handler;
+import android.os.Looper;
+import java.io.InputStream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
 
@@ -24,6 +31,10 @@ public class MainActivity extends Activity {
     private LinearLayout content;
     private TextView selectedFile;
     private EditText ipAddress;
+    private TextView connectionStatus;
+    private Uri selectedUri;
+    private final ExecutorService io = Executors.newSingleThreadExecutor();
+    private final Handler main = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,7 +112,8 @@ public class MainActivity extends Activity {
         connectionHead.setGravity(Gravity.CENTER_VERTICAL);
         connectionHead.addView(text("PlayStation 4", 16, WHITE, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
-        TextView waiting = text("●  AGUARDANDO", 9, MUTED, true);
+        connectionStatus = text("●  NÃO TESTADO", 9, MUTED, true);
+        TextView waiting = connectionStatus;
         waiting.setPadding(dp(9), dp(6), dp(9), dp(6));
         waiting.setBackground(round(PANEL_LIGHT, 20, MUTED, 1));
         connectionHead.addView(waiting);
@@ -124,9 +136,7 @@ public class MainActivity extends Activity {
 
         Button connect = button("CONECTAR AO PS4", NEON, BG);
         connection.addView(connect, new LinearLayout.LayoutParams(-1, dp(49)));
-        connect.setOnClickListener(v -> Toast.makeText(this,
-                "IP salvo. O serviço receptor do PS4 ainda precisa ser configurado.",
-                Toast.LENGTH_LONG).show());
+        connect.setOnClickListener(v -> testFtp());
         content.addView(connection);
 
         section("CENTRAL DE TRANSFERÊNCIA", "02");
@@ -150,9 +160,7 @@ public class MainActivity extends Activity {
         spaceIn(transfer, 10);
         Button send = button("INICIAR TRANSFERÊNCIA  →", NEON, BG);
         transfer.addView(send, new LinearLayout.LayoutParams(-1, dp(51)));
-        send.setOnClickListener(v -> Toast.makeText(this,
-                "A transferência real será ativada após configurar o receptor no PS4.",
-                Toast.LENGTH_LONG).show());
+        send.setOnClickListener(v -> sendSelectedFile());
         content.addView(transfer);
 
         section("ATIVIDADE", "03");
@@ -195,6 +203,98 @@ public class MainActivity extends Activity {
         intent.setType("*/*");
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         startActivityForResult(intent, 100);
+    }
+
+
+    private String getFileName(Uri uri) {
+        String name = uri.getLastPathSegment();
+        try (Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                int i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (i >= 0) name = c.getString(i);
+            }
+        } catch (Exception ignored) {}
+        return name == null ? "arquivo" : name.replaceAll("[\\\\/\\\\r\\\\n]", "_");
+    }
+
+    private String getIp() {
+        String ip = ipAddress.getText().toString().trim();
+        if (ip.isEmpty()) throw new IllegalArgumentException("Informe o IP do PS4.");
+        return ip;
+    }
+
+    private void testFtp() {
+        final String ip;
+        try { ip = getIp(); } catch (Exception e) {
+            Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show(); return;
+        }
+        connectionStatus.setText("●  TESTANDO...");
+        connectionStatus.setTextColor(CYAN);
+        io.execute(() -> {
+            FtpClient ftp = new FtpClient(ip, 2121);
+            try {
+                String result = ftp.connectAndLogin();
+                main.post(() -> {
+                    connectionStatus.setText("●  CONECTADO");
+                    connectionStatus.setTextColor(NEON);
+                    Toast.makeText(this, result, Toast.LENGTH_LONG).show();
+                });
+            } catch (Exception e) {
+                main.post(() -> {
+                    connectionStatus.setText("●  FALHA NA CONEXÃO");
+                    connectionStatus.setTextColor(MUTED);
+                    Toast.makeText(this, "Não conectou: " + e.getMessage()
+                            + "\\nConfira FTP ativo, IP e Wi-Fi.", Toast.LENGTH_LONG).show();
+                });
+            } finally { ftp.close(); }
+        });
+    }
+
+    private void sendSelectedFile() {
+        if (selectedUri == null) {
+            Toast.makeText(this, "Escolha um arquivo primeiro.", Toast.LENGTH_LONG).show(); return;
+        }
+        final String ip;
+        try { ip = getIp(); } catch (Exception e) {
+            Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show(); return;
+        }
+        String name = getFileName(selectedUri);
+        if (!name.toLowerCase().endsWith(".pkg")) {
+            Toast.makeText(this, "Nesta primeira etapa, o envio automático está limitado a arquivos PKG.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        final Uri uri = selectedUri;
+        final String remote = "/data/pkg/" + name;
+        Toast.makeText(this, "Enviando PKG para /data/pkg no PS4...", Toast.LENGTH_LONG).show();
+        io.execute(() -> {
+            FtpClient ftp = new FtpClient(ip, 2121);
+            try {
+                ftp.connectAndLogin();
+                ftp.upload(new FtpClient.UriSource() {
+                    public InputStream open() throws java.io.IOException {
+                        return getContentResolver().openInputStream(uri);
+                    }
+                    public long length() {
+                        try (android.content.res.AssetFileDescriptor afd = getContentResolver().openAssetFileDescriptor(uri, "r")) {
+                            return afd == null ? -1 : afd.getLength();
+                        } catch (Exception e) { return -1; }
+                    }
+                }, remote, (sent, total) -> main.post(() ->
+                        selectedFile.setText("ENVIANDO: " + name + "\\n" + sent / 1024 / 1024 + " MB enviados")));
+                main.post(() -> {
+                    selectedFile.setText("ENVIO CONCLUÍDO\\n" + name);
+                    Toast.makeText(this, "PKG enviado para /data/pkg. Agora instale pelo Package Installer do PS4.", Toast.LENGTH_LONG).show();
+                });
+            } catch (Exception e) {
+                main.post(() -> Toast.makeText(this, "Falha no envio: " + e.getMessage(), Toast.LENGTH_LONG).show());
+            } finally { ftp.close(); }
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        io.shutdownNow();
     }
 
     private LinearLayout statBlock(String value, String label, int color) {
@@ -287,8 +387,9 @@ public class MainActivity extends Activity {
         if (requestCode == 100 && resultCode == RESULT_OK && data != null) {
             Uri uri = data.getData();
             if (uri != null) {
-                String path = uri.getLastPathSegment();
-                selectedFile.setText("ARQUIVO SELECIONADO\n" + (path == null ? "Arquivo pronto" : path));
+                selectedUri = uri;
+                String name = getFileName(uri);
+                selectedFile.setText("ARQUIVO SELECIONADO\\n" + name);
                 selectedFile.setTextColor(NEON);
             }
         }
