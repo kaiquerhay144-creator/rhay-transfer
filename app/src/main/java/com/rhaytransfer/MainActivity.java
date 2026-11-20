@@ -64,7 +64,7 @@ public class MainActivity extends Activity {
         LinearLayout brand=new LinearLayout(this); brand.setOrientation(1);
         brand.addView(text("RHAY TRANSFER",22,WHITE,true)); TextView sub=text("LOCAL FILE COMMAND CENTER",9,MUTED,true); sub.setLetterSpacing(.13f); brand.addView(sub);
         top.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
-        TextView ver=text("v2.0",11,SILVER,true); ver.setPadding(dp(12),dp(7),dp(12),dp(7)); ver.setBackground(round(LIGHT,30,SILVER,1)); top.addView(ver); content.addView(top);
+        TextView ver=text("v2.1",11,SILVER,true); ver.setPadding(dp(12),dp(7),dp(12),dp(7)); ver.setBackground(round(LIGHT,30,SILVER,1)); top.addView(ver); content.addView(top);
         space(20);
         LinearLayout hero=card(PANEL); hero.setPadding(dp(17),dp(17),dp(17),dp(17));
         LinearLayout row=new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.addView(text("●  RHAY TRANSFER",10,WHITE,true),new LinearLayout.LayoutParams(0,-2,1)); row.addView(text("REDE LOCAL",9,SILVER,true)); hero.addView(row);
