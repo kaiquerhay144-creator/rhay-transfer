@@ -38,7 +38,7 @@ public class TransferService extends Service {
         String common=intent.getStringExtra("common_dir");
         if(host==null||uris==null||names==null||uris.isEmpty()||names.size()!=uris.size()){stopSelf(startId);return START_NOT_STICKY;}
         if(running)return START_NOT_STICKY;
-        running=true;paused=false;cancelled=false;
+        running=true;paused=false;cancelled=false;getSharedPreferences("rhay_transfer",MODE_PRIVATE).edit().putBoolean("transfer_running",true).putBoolean("transfer_paused",false).apply();
         Notification initial=buildNotification("Preparando transferência","PS4 Transfer está enviando arquivos ao console",0,false);
         if(Build.VERSION.SDK_INT>=29)startForeground(NOTIFICATION_ID,initial,ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         else startForeground(NOTIFICATION_ID,initial);
@@ -47,8 +47,8 @@ public class TransferService extends Service {
         worker.execute(()->transfer(host,uris,names,destination));
         return START_NOT_STICKY;
     }
-    private void pauseTransfer(){if(!running||paused)return;paused=true;updateNotification("Transferência pausada","Toque em Continuar no aplicativo",0,true);broadcast("paused",0,0,"Pausado","Envio pausado","Transferência pausada pelo usuário.");}
-    private void resumeTransfer(){if(!running||!paused)return;synchronized(pauseLock){paused=false;pauseLock.notifyAll();}broadcast("resumed",0,0,"Retomando...","Aguarde","Transferência retomada.");}
+    private void pauseTransfer(){if(!running||paused)return;paused=true;getSharedPreferences("rhay_transfer",MODE_PRIVATE).edit().putBoolean("transfer_paused",true).apply();updateNotification("Transferência pausada","Toque em Continuar no aplicativo",0,true);broadcast("paused",0,0,"Pausado","Envio pausado","Transferência pausada pelo usuário.");}
+    private void resumeTransfer(){if(!running||!paused)return;getSharedPreferences("rhay_transfer",MODE_PRIVATE).edit().putBoolean("transfer_paused",false).apply();synchronized(pauseLock){paused=false;pauseLock.notifyAll();}broadcast("resumed",0,0,"Retomando...","Aguarde","Transferência retomada.");}
     private void cancelTransfer(){if(!running)return;cancelled=true;synchronized(pauseLock){paused=false;pauseLock.notifyAll();}updateNotification("Cancelando transferência","Interrompendo o envio...",0,true);}
     private void checkpoint()throws IOException{synchronized(pauseLock){while(paused&&!cancelled){try{pauseLock.wait();}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("Transferência interrompida.");}}}if(cancelled)throw new IOException("Transferência cancelada pelo usuário.");}
     private void acquireLocks(){
@@ -98,7 +98,7 @@ public class TransferService extends Service {
             broadcast("error",0,0,"0%","—","Falha no envio: "+error);
             updateNotification("Falha na transferência",error,0,false);
             stopForeground(false);stopSelf();
-        }finally{if(ftp!=null)ftp.close();releaseLocks();running=false;}
+        }finally{if(ftp!=null)ftp.close();releaseLocks();running=false;getSharedPreferences("rhay_transfer",MODE_PRIVATE).edit().putBoolean("transfer_running",false).putBoolean("transfer_paused",false).apply();}
     }
     private void sendProgress(double speed,int pct,String progress,String eta,String detail){
         getSharedPreferences("rhay_transfer",MODE_PRIVATE).edit().putString("last_state","progress").putFloat("last_speed",(float)speed).putInt("last_percent",pct).putString("last_progress",progress).putString("last_eta",eta).putString("last_detail",detail).apply();
