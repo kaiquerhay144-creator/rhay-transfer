@@ -3,6 +3,7 @@ package com.rhaytransfer;
 import android.app.*;
 import android.content.*;
 import android.net.Uri;
+import android.content.res.AssetFileDescriptor;
 import android.os.*;
 import android.content.pm.ServiceInfo;
 import java.io.*;
@@ -97,7 +98,7 @@ public class TransferService extends Service {
     private Notification buildNotification(String title,String body,int pct,boolean ongoing){
         Intent open=new Intent(this,MainActivity.class);PendingIntent pi=PendingIntent.getActivity(this,1,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,CHANNEL):new Notification.Builder(this);
-        b.setSmallIcon(android.R.drawable.stat_sys_upload).setContentTitle(title).setContentText(body).setContentIntent(pi).setOnlyAlertOnce(true).setOngoing(ongoing).setCategory(Notification.CATEGORY_PROGRESS);
+        b.setSmallIcon(android.R.drawable.stat_sys_upload).setContentTitle(title).setContentText(body).setContentIntent(pi).setOnlyAlertOnce(true).setOngoing(ongoing).setAutoCancel(!ongoing).setCategory(Notification.CATEGORY_PROGRESS);
         if(ongoing)b.setProgress(100,Math.max(0,Math.min(100,pct)),false);
         return b.build();
     }
