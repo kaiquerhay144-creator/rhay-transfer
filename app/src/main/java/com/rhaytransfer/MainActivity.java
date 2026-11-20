@@ -31,8 +31,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
-    private static final int BG=Color.rgb(5,5,7), PANEL=Color.rgb(18,18,21), LIGHT=Color.rgb(31,31,35);
-    private static final int WHITE=Color.rgb(250,250,250), SILVER=Color.rgb(185,185,192), MUTED=Color.rgb(145,145,153);
+    private static final int BG=Color.rgb(4,9,25), PANEL=Color.rgb(10,22,48), LIGHT=Color.rgb(17,39,78);
+    private static final int WHITE=Color.rgb(250,252,255), SILVER=Color.rgb(105,174,255), MUTED=Color.rgb(145,169,210), BLUE=Color.rgb(0,112,209), CYAN=Color.rgb(0,183,255);
     private static final int PICK=100, PICK_MULTI=101;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private final Handler main=new Handler(Looper.getMainLooper());
@@ -48,7 +48,7 @@ public class MainActivity extends Activity {
     private String commonDirectory="/data/Rhay Transfer";
     private boolean sending=false;
     private boolean receiverRegistered=false;
-    private final BroadcastReceiver transferReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){String state=i.getStringExtra("state");if(state==null)return; if(state.equals("progress")){double speed=i.getDoubleExtra("speed",0);int pct=i.getIntExtra("percent",0);String detail=i.getStringExtra("detail");speedValue.setText(df.format(speed)+" MB/s");if(heroSpeed!=null)heroSpeed.setText(df.format(speed)+" MB/s");progressBar.setProgress(pct);progressLabel.setText(i.getStringExtra("progress"));etaLabel.setText(i.getStringExtra("eta"));transferStatus.setText(detail);}else if(state.equals("done")){sending=false;speedValue.setText("0.00 MB/s");if(heroSpeed!=null)heroSpeed.setText("0.00 MB/s");progressBar.setProgress(100);progressLabel.setText("100%");etaLabel.setText("Fila concluída");transferStatus.setText(i.getStringExtra("detail"));selectedFile.setText("ENVIO CONCLUÍDO");queue.clear();queueNames.clear();selectedUri=null;if(heroSent!=null)heroSent.setText(String.valueOf(prefs.getInt("sent_count",0)));}else if(state.equals("error")){sending=false;transferStatus.setText(i.getStringExtra("detail"));etaLabel.setText("Verifique a conexão e tente novamente.");}}};
+    private final BroadcastReceiver transferReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){String state=i.getStringExtra("state");if(state==null)return; if(state.equals("progress")){double speed=i.getDoubleExtra("speed",0);int pct=i.getIntExtra("percent",0);String detail=i.getStringExtra("detail");speedValue.setText(df.format(speed)+" MB/s");if(heroSpeed!=null)heroSpeed.setText(df.format(speed)+" MB/s");String prog=i.getStringExtra("progress");progressBar.setIndeterminate(pct<=0&&prog!=null&&prog.contains("total desconhecido"));if(!progressBar.isIndeterminate())progressBar.setProgress(pct);progressLabel.setText(prog==null?pct+"%":prog);etaLabel.setText(i.getStringExtra("eta"));transferStatus.setText(detail);}else if(state.equals("done")){sending=false;speedValue.setText("0.00 MB/s");if(heroSpeed!=null)heroSpeed.setText("0.00 MB/s");progressBar.setProgress(100);progressLabel.setText("100%");etaLabel.setText("Fila concluída");transferStatus.setText(i.getStringExtra("detail"));selectedFile.setText("ENVIO CONCLUÍDO");queue.clear();queueNames.clear();selectedUri=null;if(heroSent!=null)heroSent.setText(String.valueOf(prefs.getInt("sent_count",0)));}else if(state.equals("error")){sending=false;transferStatus.setText(i.getStringExtra("detail"));etaLabel.setText("Verifique a conexão e tente novamente.");}}};
     private long lastUiUpdate=0;
 
     @Override public void onCreate(Bundle state) {
@@ -66,20 +66,20 @@ public class MainActivity extends Activity {
         content=new LinearLayout(this); content.setOrientation(1); content.setPadding(dp(20),dp(18),dp(20),dp(28)); scroll.addView(content); setContentView(scroll);
         LinearLayout top=new LinearLayout(this); top.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout brand=new LinearLayout(this); brand.setOrientation(1);
-        brand.addView(text("RHAY TRANSFER",22,WHITE,true)); TextView sub=text("LOCAL FILE COMMAND CENTER",9,MUTED,true); sub.setLetterSpacing(.13f); brand.addView(sub);
+        brand.addView(text("PS4 TRANSFER",22,WHITE,true)); TextView sub=text("RHAY • GAMING FILE TRANSFER",9,SILVER,true); sub.setLetterSpacing(.13f); brand.addView(sub);
         top.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
         TextView ver=text("v2.2",11,SILVER,true); ver.setPadding(dp(12),dp(7),dp(12),dp(7)); ver.setBackground(round(LIGHT,30,SILVER,1)); top.addView(ver); content.addView(top);
         space(20);
         LinearLayout hero=card(PANEL); hero.setPadding(dp(17),dp(17),dp(17),dp(17));
-        LinearLayout row=new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.addView(text("●  RHAY TRANSFER",10,WHITE,true),new LinearLayout.LayoutParams(0,-2,1)); row.addView(text("REDE LOCAL",9,SILVER,true)); hero.addView(row);
-        spaceIn(hero,12); hero.addView(text("Seu centro de transferências.",22,WHITE,true)); hero.addView(text("Celular ⇄ PlayStation 4",12,MUTED,false)); spaceIn(hero,16);
+        LinearLayout row=new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.addView(text("●  PLAYSTATION 4",10,WHITE,true),new LinearLayout.LayoutParams(0,-2,1)); row.addView(text("REDE LOCAL",9,SILVER,true)); hero.addView(row);
+        spaceIn(hero,12); hero.addView(text("Transfira. Conecte. Jogue.",22,WHITE,true)); hero.addView(text("Seu hub de arquivos para PS4",12,MUTED,false)); spaceIn(hero,16);
         LinearLayout stats=new LinearLayout(this); stats.addView(stat("0.00 MB/s","VELOCIDADE",true),new LinearLayout.LayoutParams(0,-2,1)); stats.addView(stat(String.valueOf(prefs.getInt("sent_count",0)),"ENVIOS",false),new LinearLayout.LayoutParams(0,-2,1)); hero.addView(stats); content.addView(hero);
         section("CONEXÃO DO CONSOLE","01"); LinearLayout conn=card(PANEL); conn.setPadding(dp(15),dp(15),dp(15),dp(15));
         LinearLayout cr=new LinearLayout(this); cr.setGravity(Gravity.CENTER_VERTICAL); cr.addView(text("PlayStation 4",16,WHITE,true),new LinearLayout.LayoutParams(0,-2,1));
         connectionStatus=text("●  NÃO TESTADO",9,MUTED,true); connectionStatus.setPadding(dp(8),dp(6),dp(8),dp(6)); connectionStatus.setBackground(round(LIGHT,20,MUTED,1)); cr.addView(connectionStatus); conn.addView(cr);
         spaceIn(conn,12); conn.addView(text("ENDEREÇO IP",9,MUTED,true)); spaceIn(conn,5);
         ipAddress=new EditText(this); ipAddress.setSingleLine(true); ipAddress.setText(prefs.getString("ip","192.168.1.224")); ipAddress.setTextSize(15); ipAddress.setTextColor(WHITE); ipAddress.setSelectAllOnFocus(true); ipAddress.setPadding(dp(12),0,dp(12),0); ipAddress.setBackground(round(LIGHT,12,Color.rgb(75,75,82),1)); conn.addView(ipAddress,new LinearLayout.LayoutParams(-1,dp(48)));
-        spaceIn(conn,10); Button test=button("TESTAR CONEXÃO FTP",WHITE,BG); conn.addView(test,new LinearLayout.LayoutParams(-1,dp(47))); test.setOnClickListener(v->testFtp());
+        spaceIn(conn,10); Button test=button("TESTAR CONEXÃO FTP",BLUE,WHITE); conn.addView(test,new LinearLayout.LayoutParams(-1,dp(47))); test.setOnClickListener(v->testFtp());
         content.addView(conn);
 
         section("CENTRAL DE TRANSFERÊNCIA","02"); LinearLayout transfer=card(PANEL); transfer.setPadding(dp(15),dp(15),dp(15),dp(15));
@@ -88,13 +88,13 @@ public class MainActivity extends Activity {
         selectedFile=text("Nenhum arquivo selecionado",12,MUTED,false); selectedFile.setPadding(dp(11),dp(12),dp(11),dp(12)); selectedFile.setBackground(round(LIGHT,11,Color.TRANSPARENT,0)); transfer.addView(selectedFile);
         spaceIn(transfer,10); Button one=button("＋  ESCOLHER ARQUIVO",LIGHT,WHITE); transfer.addView(one,new LinearLayout.LayoutParams(-1,dp(46))); one.setOnClickListener(v->chooseFiles(false));
         spaceIn(transfer,7); Button many=button("＋  SELECIONAR VÁRIOS",LIGHT,WHITE); transfer.addView(many,new LinearLayout.LayoutParams(-1,dp(46))); many.setOnClickListener(v->chooseFiles(true));
-        spaceIn(transfer,10); Button send=button("INICIAR FILA DE ENVIO  →",WHITE,BG); transfer.addView(send,new LinearLayout.LayoutParams(-1,dp(50))); send.setOnClickListener(v->startQueue());
+        spaceIn(transfer,10); Button send=button("INICIAR FILA DE ENVIO  →",BLUE,WHITE); transfer.addView(send,new LinearLayout.LayoutParams(-1,dp(50))); send.setOnClickListener(v->startQueue());
         content.addView(transfer);
 
         section("TRANSFERÊNCIA EM TEMPO REAL","03"); LinearLayout activity=card(PANEL); activity.setPadding(dp(15),dp(15),dp(15),dp(15));
         LinearLayout speedRow=new LinearLayout(this); speedRow.setGravity(Gravity.CENTER_VERTICAL); speedRow.addView(text("VELOCIDADE ATUAL",9,MUTED,true),new LinearLayout.LayoutParams(0,-2,1));
         speedValue=text("0.00 MB/s",22,WHITE,true); speedRow.addView(speedValue); activity.addView(speedRow);
-        spaceIn(activity,12); progressBar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); progressBar.setMax(100); progressBar.setProgress(0); activity.addView(progressBar,new LinearLayout.LayoutParams(-1,dp(8)));
+        spaceIn(activity,12); progressBar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); progressBar.setMax(100); progressBar.setProgress(0); progressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN)); progressBar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(LIGHT)); activity.addView(progressBar,new LinearLayout.LayoutParams(-1,dp(8)));
         spaceIn(activity,8); LinearLayout pr=new LinearLayout(this); pr.addView(text("Progresso",11,MUTED,false),new LinearLayout.LayoutParams(0,-2,1)); progressLabel=text("0%",12,WHITE,true); pr.addView(progressLabel); activity.addView(pr);
         spaceIn(activity,5); etaLabel=text("Tempo restante: —",11,MUTED,false); activity.addView(etaLabel);
         spaceIn(activity,8); transferStatus=text("Aguardando transferência",11,MUTED,false); activity.addView(transferStatus);
@@ -105,7 +105,7 @@ public class MainActivity extends Activity {
         spaceIn(tools,7); Button history=button("◷  HISTÓRICO DE TRANSFERÊNCIAS",LIGHT,WHITE); tools.addView(history,new LinearLayout.LayoutParams(-1,dp(46))); history.setOnClickListener(v->showHistory());
         spaceIn(tools,7); Button clear=button("LIMPAR FILA DE ENVIO",LIGHT,WHITE); tools.addView(clear,new LinearLayout.LayoutParams(-1,dp(42))); clear.setOnClickListener(v->{if(!sending){queue.clear();queueNames.clear();selectedUri=null;selectedFile.setText("Fila vazia");progressBar.setProgress(0);progressLabel.setText("0%");}else Toast.makeText(this,"Aguarde o envio atual terminar.",Toast.LENGTH_SHORT).show();});
         content.addView(tools);
-        space(20); TextView foot=text("RHAY TRANSFER  •  FEITO PARA SUA REDE",9,MUTED,true); foot.setGravity(Gravity.CENTER); foot.setLetterSpacing(.08f); content.addView(foot);
+        space(20); TextView foot=text("PS4 TRANSFER  •  POWERED BY RHAY",9,MUTED,true); foot.setGravity(Gravity.CENTER); foot.setLetterSpacing(.08f); content.addView(foot);
     }
 
     private void chooseFiles(boolean multiple) {
@@ -164,7 +164,7 @@ public class MainActivity extends Activity {
             n.setSmallIcon(android.R.drawable.stat_sys_upload_done).setContentTitle(title).setContentText(message).setAutoCancel(true).setContentIntent(pi);nm.notify(1,n.build());
         }catch(Exception ignored){}
     }
-    private void createNotificationChannel(){if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel("rhay_transfer","Rhay Transfer",NotificationManager.IMPORTANCE_DEFAULT);((NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(c);}}
+    private void createNotificationChannel(){if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel("rhay_transfer","PS4 Transfer",NotificationManager.IMPORTANCE_DEFAULT);((NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(c);}}
     private String human(long n){if(n<0)return "tamanho desconhecido";if(n<1024)return n+" B";if(n<1048576)return df.format(n/1024d)+" KB";if(n<1073741824)return df.format(n/1048576d)+" MB";return df.format(n/1073741824d)+" GB";}
     private String formatTime(long s){return s>=3600?(s/3600)+"h "+(s%3600/60)+"m":s>=60?(s/60)+"m "+(s%60)+"s":s+"s";}
     private long parseLong(String s){try{return Long.parseLong(s);}catch(Exception e){return 0;}}
@@ -183,5 +183,8 @@ public class MainActivity extends Activity {
         if(req==PICK){Uri u=data.getData();if(u!=null){persistReadPermission(u);selectedUri=u;queue.clear();queueNames.clear();queue.add(u);queueNames.add(fileName(u));selectedFile.setText("1 arquivo: "+fileName(u));}}
         else if(req==PICK_MULTI){queue.clear();queueNames.clear();if(data.getClipData()!=null){for(int i=0;i<data.getClipData().getItemCount();i++){Uri u=data.getClipData().getItemAt(i).getUri();persistReadPermission(u);queue.add(u);queueNames.add(fileName(u));}}else if(data.getData()!=null){persistReadPermission(data.getData());queue.add(data.getData());queueNames.add(fileName(data.getData()));}selectedUri=null;selectedFile.setText(queue.size()+" arquivo(s) na fila");}
     }
-    @Override protected void onDestroy(){if(receiverRegistered){try{unregisterReceiver(transferReceiver);}catch(Exception ignored){}}super.onDestroy();io.shutdownNow();}
+    @Override protected void onStart(){super.onStart();if(!receiverRegistered){IntentFilter f=new IntentFilter("com.rhaytransfer.TRANSFER");if(Build.VERSION.SDK_INT>=33)registerReceiver(transferReceiver,f,Context.RECEIVER_NOT_EXPORTED);else registerReceiver(transferReceiver,f);receiverRegistered=true;}restoreProgress();}
+    @Override protected void onStop(){if(receiverRegistered){try{unregisterReceiver(transferReceiver);}catch(Exception ignored){}receiverRegistered=false;}super.onStop();}
+    private void restoreProgress(){String state=prefs.getString("last_state","");if(state.equals("progress")){double speed=prefs.getFloat("last_speed",0f);int pct=prefs.getInt("last_percent",0);String prog=prefs.getString("last_progress","0%");speedValue.setText(df.format(speed)+" MB/s");if(heroSpeed!=null)heroSpeed.setText(df.format(speed)+" MB/s");progressBar.setIndeterminate(pct<=0&&prog.contains("total desconhecido"));if(!progressBar.isIndeterminate())progressBar.setProgress(pct);progressLabel.setText(prog);etaLabel.setText(prefs.getString("last_eta","Calculando tempo restante"));transferStatus.setText(prefs.getString("last_detail","Transferência em andamento"));}else if(state.equals("done")){progressBar.setIndeterminate(false);progressBar.setProgress(100);progressLabel.setText("100%");etaLabel.setText("Fila concluída");transferStatus.setText(prefs.getString("last_detail","Transferência concluída"));}else if(state.equals("error")){progressBar.setIndeterminate(false);transferStatus.setText(prefs.getString("last_detail","Falha na transferência"));}}
+    @Override protected void onDestroy(){super.onDestroy();io.shutdownNow();}
 }
