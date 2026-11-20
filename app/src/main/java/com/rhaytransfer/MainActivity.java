@@ -6,6 +6,8 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -45,6 +47,8 @@ public class MainActivity extends Activity {
     private Uri selectedUri;
     private String commonDirectory="/data/Rhay Transfer";
     private boolean sending=false;
+    private boolean receiverRegistered=false;
+    private final BroadcastReceiver transferReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){String state=i.getStringExtra("state");if(state==null)return; if(state.equals("progress")){double speed=i.getDoubleExtra("speed",0);int pct=i.getIntExtra("percent",0);String detail=i.getStringExtra("detail");speedValue.setText(df.format(speed)+" MB/s");if(heroSpeed!=null)heroSpeed.setText(df.format(speed)+" MB/s");progressBar.setProgress(pct);progressLabel.setText(i.getStringExtra("progress"));etaLabel.setText(i.getStringExtra("eta"));transferStatus.setText(detail);}else if(state.equals("done")){sending=false;speedValue.setText("0.00 MB/s");if(heroSpeed!=null)heroSpeed.setText("0.00 MB/s");progressBar.setProgress(100);progressLabel.setText("100%");etaLabel.setText("Fila concluída");transferStatus.setText(i.getStringExtra("detail"));selectedFile.setText("ENVIO CONCLUÍDO");queue.clear();queueNames.clear();selectedUri=null;if(heroSent!=null)heroSent.setText(String.valueOf(prefs.getInt("sent_count",0)));}else if(state.equals("error")){sending=false;transferStatus.setText(i.getStringExtra("detail"));etaLabel.setText("Verifique a conexão e tente novamente.");}}};
     private long lastUiUpdate=0;
 
     @Override public void onCreate(Bundle state) {
@@ -64,7 +68,7 @@ public class MainActivity extends Activity {
         LinearLayout brand=new LinearLayout(this); brand.setOrientation(1);
         brand.addView(text("RHAY TRANSFER",22,WHITE,true)); TextView sub=text("LOCAL FILE COMMAND CENTER",9,MUTED,true); sub.setLetterSpacing(.13f); brand.addView(sub);
         top.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
-        TextView ver=text("v2.1",11,SILVER,true); ver.setPadding(dp(12),dp(7),dp(12),dp(7)); ver.setBackground(round(LIGHT,30,SILVER,1)); top.addView(ver); content.addView(top);
+        TextView ver=text("v2.2",11,SILVER,true); ver.setPadding(dp(12),dp(7),dp(12),dp(7)); ver.setBackground(round(LIGHT,30,SILVER,1)); top.addView(ver); content.addView(top);
         space(20);
         LinearLayout hero=card(PANEL); hero.setPadding(dp(17),dp(17),dp(17),dp(17));
         LinearLayout row=new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.addView(text("●  RHAY TRANSFER",10,WHITE,true),new LinearLayout.LayoutParams(0,-2,1)); row.addView(text("REDE LOCAL",9,SILVER,true)); hero.addView(row);
@@ -128,31 +132,12 @@ public class MainActivity extends Activity {
         if(queue.isEmpty()&&selectedUri!=null){queue.add(selectedUri);queueNames.add(fileName(selectedUri));}
         if(queue.isEmpty()){toast("Selecione pelo menos um arquivo.");return;}
         final String host;try{host=ip();}catch(Exception e){toast(e.getMessage());return;}
-        sending=true; sentCount=null; transferStatus.setText("Preparando fila...");
-        ArrayList<Uri> items=new ArrayList<>(queue); ArrayList<String> names=new ArrayList<>(queueNames);
-        io.execute(()->{
-            int ok=0; FtpClient ftp=null;
-            try{
-                ftp=new FtpClient(host,2121);ftp.connectAndLogin();
-                for(int idx=0;idx<items.size();idx++){
-                    final int current=idx;Uri uri=items.get(idx);String name=names.get(idx);
-                    final boolean pkg=name.toLowerCase(Locale.ROOT).endsWith(".pkg");
-                    final String folder=pkg?"/data/pkg":commonDirectory;
-                    long total=fileLength(uri);final long start=System.currentTimeMillis();
-                    final long[] lastBytes={0};final long[] lastTime={start};
-                    main.post(()->{transferStatus.setText("Enviando "+(current+1)+"/"+items.size()+": "+name);progressBar.setProgress(0);progressLabel.setText("0%");etaLabel.setText("Calculando tempo restante...");speedValue.setText("0.00 MB/s");selectedFile.setText("ENVIANDO: "+name);});
-                    ftp.upload(new FtpClient.UriSource(){public InputStream open()throws java.io.IOException{return getContentResolver().openInputStream(uri);}public long length(){return total;}},folder+"/"+name,(sent,size)->{
-                        long now=System.currentTimeMillis();if(now-lastTime[0]>=250||sent==size){long delta=sent-lastBytes[0];double speed=delta/1024d/1024d/Math.max(.001,(now-lastTime[0])/1000d);lastBytes[0]=sent;lastTime[0]=now;
-                            int percent=size>0?(int)Math.min(100,sent*100/size):0;long remaining=size>sent&&speed>0?(long)((size-sent)/(speed*1024d*1024d)): -1;
-                            String eta=remaining<0?"Tempo restante: —":"Tempo restante: "+formatTime(remaining);
-                            main.post(()->{speedValue.setText(df.format(speed)+" MB/s");if(heroSpeed!=null)heroSpeed.setText(df.format(speed)+" MB/s");progressBar.setProgress(percent);progressLabel.setText(size>0?percent+"%  •  "+human(sent)+" / "+human(size):human(sent)+" enviados");etaLabel.setText(eta);});
-                        }});
-                    ok++;addHistory(name,folder,true,total);
-                }
-                final int done=ok;main.post(()->{sending=false;transferStatus.setText("Concluído: "+done+" arquivo(s) enviado(s)");progressBar.setProgress(100);progressLabel.setText("100%");etaLabel.setText("Fila concluída");selectedFile.setText("ENVIO CONCLUÍDO — "+done+" arquivo(s)");toast("Transferência concluída! Arquivos enviados ao PS4.");notifyDone("Transferência concluída",done+" arquivo(s) enviados ao PS4.");queue.clear();queueNames.clear();selectedUri=null;if(heroSpeed!=null)heroSpeed.setText("0.00 MB/s");if(heroSent!=null)heroSent.setText(String.valueOf(prefs.getInt("sent_count",0)));});
-            }catch(Exception e){String error=e.getMessage()==null?"Erro desconhecido":e.getMessage();addHistory("Fila",commonDirectory,false,0);main.post(()->{sending=false;transferStatus.setText("Falha: "+error);etaLabel.setText("Verifique a conexão e tente novamente.");toast("Falha no envio: "+error);notifyDone("Falha na transferência",error);});}
-            finally{if(ftp!=null)ftp.close();}
-        });
+        ArrayList<Uri> items=new ArrayList<>(queue);ArrayList<String> names=new ArrayList<>(queueNames);
+        Intent service=new Intent(this,TransferService.class);
+        service.putExtra("host",host);service.putStringArrayListExtra("names",names);service.putParcelableArrayListExtra("uris",items);
+        service.putExtra("common_dir",commonDirectory);
+        try{if(Build.VERSION.SDK_INT>=26)startForegroundService(service);else startService(service);sending=true;transferStatus.setText("Transferência em segundo plano iniciada");selectedFile.setText(items.size()+" arquivo(s) na fila");toast("Envio iniciado. Você pode sair do Rhay Transfer; ele continuará em segundo plano.");}
+        catch(Exception e){sending=false;toast("Não foi possível iniciar o envio: "+e.getMessage());}
     }
     private void addHistory(String name,String path,boolean success,long bytes){
         synchronized(this){String old=prefs.getString("history","");String line=(success?"OK":"ERRO")+"|"+System.currentTimeMillis()+"|"+name+"|"+path+"|"+bytes;
@@ -197,5 +182,5 @@ public class MainActivity extends Activity {
         if(req==PICK){Uri u=data.getData();if(u!=null){selectedUri=u;queue.clear();queueNames.clear();queue.add(u);queueNames.add(fileName(u));selectedFile.setText("1 arquivo: "+fileName(u));}}
         else if(req==PICK_MULTI){queue.clear();queueNames.clear();if(data.getClipData()!=null){for(int i=0;i<data.getClipData().getItemCount();i++){Uri u=data.getClipData().getItemAt(i).getUri();queue.add(u);queueNames.add(fileName(u));}}else if(data.getData()!=null){queue.add(data.getData());queueNames.add(fileName(data.getData()));}selectedUri=null;selectedFile.setText(queue.size()+" arquivo(s) na fila");}
     }
-    @Override protected void onDestroy(){super.onDestroy();io.shutdownNow();}
+    @Override protected void onDestroy(){if(receiverRegistered){try{unregisterReceiver(transferReceiver);}catch(Exception ignored){}}super.onDestroy();io.shutdownNow();}
 }
