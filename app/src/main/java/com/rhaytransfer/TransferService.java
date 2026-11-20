@@ -33,7 +33,7 @@ public class TransferService extends Service {
         if(host==null||uris==null||names==null||uris.isEmpty()||names.size()!=uris.size()){stopSelf(startId);return START_NOT_STICKY;}
         if(running)return START_NOT_STICKY;
         running=true;
-        Notification initial=buildNotification("Preparando transferência","Rhay Transfer está enviando arquivos ao PS4",0,false);
+        Notification initial=buildNotification("Preparando transferência","PS4 Transfer está enviando arquivos ao console",0,false);
         if(Build.VERSION.SDK_INT>=29)startForeground(NOTIFICATION_ID,initial,ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         else startForeground(NOTIFICATION_ID,initial);
         acquireLocks();
@@ -69,7 +69,7 @@ public class TransferService extends Service {
                         int pct=size>0?(int)Math.min(100,sent*100/size):0;
                         long remaining=size>sent&&avg>0?(long)((size-sent)/(avg*1048576d)):-1;
                         String eta=remaining<0?"Calculando tempo restante":"Restam "+formatTime(remaining);
-                        String prog=size>0?pct+"% • "+human(sent)+" / "+human(size):human(sent)+" enviados";
+                        String prog=size>0?pct+"% • "+human(sent)+" / "+human(size):human(sent)+" enviados • total desconhecido";
                         String detail="Arquivo "+current+"/"+all+": "+name;
                         sendProgress(avg,pct,prog,eta,detail);
                         updateNotification(detail,df.format(avg)+" MB/s • "+prog,pct,true);
@@ -90,9 +90,11 @@ public class TransferService extends Service {
         }finally{if(ftp!=null)ftp.close();releaseLocks();running=false;}
     }
     private void sendProgress(double speed,int pct,String progress,String eta,String detail){
+        getSharedPreferences("rhay_transfer",MODE_PRIVATE).edit().putString("last_state","progress").putFloat("last_speed",(float)speed).putInt("last_percent",pct).putString("last_progress",progress).putString("last_eta",eta).putString("last_detail",detail).apply();
         Intent i=new Intent("com.rhaytransfer.TRANSFER");i.setPackage(getPackageName());i.putExtra("state","progress");i.putExtra("speed",speed);i.putExtra("percent",pct);i.putExtra("progress",progress);i.putExtra("eta",eta);i.putExtra("detail",detail);sendBroadcast(i);
     }
     private void broadcast(String state,double speed,int pct,String progress,String eta,String detail){
+        getSharedPreferences("rhay_transfer",MODE_PRIVATE).edit().putString("last_state",state).putFloat("last_speed",(float)speed).putInt("last_percent",pct).putString("last_progress",progress).putString("last_eta",eta).putString("last_detail",detail).apply();
         Intent i=new Intent("com.rhaytransfer.TRANSFER");i.setPackage(getPackageName());i.putExtra("state",state);i.putExtra("speed",speed);i.putExtra("percent",pct);i.putExtra("progress",progress);i.putExtra("eta",eta);i.putExtra("detail",detail);sendBroadcast(i);
     }
     private Notification buildNotification(String title,String body,int pct,boolean ongoing){
@@ -105,7 +107,7 @@ public class TransferService extends Service {
     private void updateNotification(String title,String body,int pct,boolean ongoing){
         NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);nm.notify(NOTIFICATION_ID,buildNotification(title,body,pct,ongoing));
     }
-    private void createChannel(){if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel(CHANNEL,"Transferência em andamento",NotificationManager.IMPORTANCE_LOW);c.setDescription("Mostra o andamento dos envios ao PS4");((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(c);}}
+    private void createChannel(){if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel(CHANNEL,"PS4 Transfer • envio em andamento",NotificationManager.IMPORTANCE_LOW);c.setDescription("Mostra o andamento dos envios ao PS4");((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(c);}}
     private long length(Uri uri){try(AssetFileDescriptor a=getContentResolver().openAssetFileDescriptor(uri,"r")){return a==null?-1:a.getLength();}catch(Exception e){return -1;}}
     private String human(long n){if(n<0)return "tamanho desconhecido";if(n<1048576)return df.format(n/1024d)+" KB";if(n<1073741824)return df.format(n/1048576d)+" MB";return df.format(n/1073741824d)+" GB";}
     private String formatTime(long s){return s>=3600?(s/3600)+"h "+(s%3600/60)+"m":s>=60?(s/60)+"m "+(s%60)+"s":s+"s";}
