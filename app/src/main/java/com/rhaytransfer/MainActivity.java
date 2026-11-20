@@ -68,7 +68,7 @@ public class MainActivity extends Activity {
         LinearLayout brand=new LinearLayout(this); brand.setOrientation(1);
         brand.addView(text("PS4 TRANSFER",22,WHITE,true)); TextView sub=text("RHAY • GAMING FILE TRANSFER",9,SILVER,true); sub.setLetterSpacing(.13f); brand.addView(sub);
         top.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
-        TextView ver=text("v2.2",11,SILVER,true); ver.setPadding(dp(12),dp(7),dp(12),dp(7)); ver.setBackground(round(LIGHT,30,SILVER,1)); top.addView(ver); content.addView(top);
+        TextView ver=text("v2.5",11,SILVER,true); ver.setPadding(dp(12),dp(7),dp(12),dp(7)); ver.setBackground(round(LIGHT,30,SILVER,1)); top.addView(ver); content.addView(top);
         space(20);
         LinearLayout hero=card(PANEL); hero.setPadding(dp(17),dp(17),dp(17),dp(17));
         LinearLayout row=new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.addView(text("●  PLAYSTATION 4",10,WHITE,true),new LinearLayout.LayoutParams(0,-2,1)); row.addView(text("REDE LOCAL",9,SILVER,true)); hero.addView(row);
@@ -160,11 +160,11 @@ public class MainActivity extends Activity {
     private void rebuild(){content.removeAllViews();buildDashboard();}
     private void notifyDone(String title,String message){
         try{NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);Intent i=new Intent(this,MainActivity.class);PendingIntent pi=PendingIntent.getActivity(this,0,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-            android.app.Notification.Builder n=Build.VERSION.SDK_INT>=26?new android.app.Notification.Builder(this,"rhay_transfer"):new android.app.Notification.Builder(this);
-            n.setSmallIcon(android.R.drawable.stat_sys_upload_done).setContentTitle(title).setContentText(message).setAutoCancel(true).setContentIntent(pi);nm.notify(1,n.build());
+            android.app.Notification.Builder n=Build.VERSION.SDK_INT>=26?new android.app.Notification.Builder(this,"rhay_transfer_done_v25"):new android.app.Notification.Builder(this);
+            n.setSmallIcon(R.drawable.ic_stat_transfer_v25).setContentTitle(title).setContentText(message).setAutoCancel(true).setContentIntent(pi);nm.notify(1,n.build());
         }catch(Exception ignored){}
     }
-    private void createNotificationChannel(){if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel("rhay_transfer","PS4 Transfer",NotificationManager.IMPORTANCE_DEFAULT);((NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(c);}}
+    private void createNotificationChannel(){if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel("rhay_transfer_done_v25","PS4 Transfer • avisos",NotificationManager.IMPORTANCE_DEFAULT);((NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(c);}}
     private String human(long n){if(n<0)return "tamanho desconhecido";if(n<1024)return n+" B";if(n<1048576)return df.format(n/1024d)+" KB";if(n<1073741824)return df.format(n/1048576d)+" MB";return df.format(n/1073741824d)+" GB";}
     private String formatTime(long s){return s>=3600?(s/3600)+"h "+(s%3600/60)+"m":s>=60?(s/60)+"m "+(s%60)+"s":s+"s";}
     private long parseLong(String s){try{return Long.parseLong(s);}catch(Exception e){return 0;}}
