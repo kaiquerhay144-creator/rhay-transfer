@@ -1,400 +1,200 @@
 package com.rhaytransfer;
 
 import android.app.Activity;
-import android.os.Bundle;
+import android.app.AlertDialog;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.database.Cursor;
+import android.provider.OpenableColumns;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.*;
-import android.database.Cursor;
-import android.provider.OpenableColumns;
-import android.os.Handler;
-import android.os.Looper;
+import android.content.Context;
+import android.content.SharedPreferences;
 import java.io.InputStream;
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
-
-    private static final int BG = Color.rgb(5, 5, 7);
-    private static final int PANEL = Color.rgb(18, 18, 21);
-    private static final int PANEL_LIGHT = Color.rgb(31, 31, 35);
-    private static final int NEON = Color.rgb(245, 245, 245);
-    private static final int CYAN = Color.rgb(185, 185, 192);
-    private static final int WHITE = Color.rgb(250, 250, 250);
-    private static final int MUTED = Color.rgb(155, 155, 162);
-
+    private static final int BG=Color.rgb(5,5,7), PANEL=Color.rgb(18,18,21), LIGHT=Color.rgb(31,31,35);
+    private static final int WHITE=Color.rgb(250,250,250), SILVER=Color.rgb(185,185,192), MUTED=Color.rgb(145,145,153);
+    private static final int PICK=100, PICK_MULTI=101;
+    private final ExecutorService io=Executors.newSingleThreadExecutor();
+    private final Handler main=new Handler(Looper.getMainLooper());
+    private final ArrayList<Uri> queue=new ArrayList<>();
+    private final ArrayList<String> queueNames=new ArrayList<>();
+    private final DecimalFormat df=new DecimalFormat("0.00");
+    private SharedPreferences prefs;
     private LinearLayout content;
-    private TextView selectedFile;
     private EditText ipAddress;
-    private TextView connectionStatus;
+    private TextView connectionStatus, selectedFile, speedValue, progressLabel, etaLabel, transferStatus, sentCount;
+    private ProgressBar progressBar;
     private Uri selectedUri;
-    private final ExecutorService io = Executors.newSingleThreadExecutor();
-    private final Handler main = new Handler(Looper.getMainLooper());
+    private String commonDirectory="/data/Rhay Transfer";
+    private boolean sending=false;
+    private long lastUiUpdate=0;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(BG);
-        getWindow().setNavigationBarColor(BG);
-        getWindow().getDecorView().setSystemUiVisibility(0);
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(BG);
-
-        content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20), dp(18), dp(20), dp(28));
-        scroll.addView(content);
-        setContentView(scroll);
-
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        prefs=getSharedPreferences("rhay_transfer",MODE_PRIVATE);
+        commonDirectory=prefs.getString("common_dir","/data/Rhay Transfer");
+        getWindow().setStatusBarColor(BG); getWindow().setNavigationBarColor(BG);
         buildDashboard();
+        createNotificationChannel();
     }
 
     private void buildDashboard() {
-        LinearLayout top = new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        top.setOrientation(LinearLayout.HORIZONTAL);
+        ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true); scroll.setBackgroundColor(BG);
+        content=new LinearLayout(this); content.setOrientation(1); content.setPadding(dp(20),dp(18),dp(20),dp(28)); scroll.addView(content); setContentView(scroll);
+        LinearLayout top=new LinearLayout(this); top.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout brand=new LinearLayout(this); brand.setOrientation(1);
+        brand.addView(text("RHAY TRANSFER",22,WHITE,true)); TextView sub=text("LOCAL FILE COMMAND CENTER",9,MUTED,true); sub.setLetterSpacing(.13f); brand.addView(sub);
+        top.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
+        TextView ver=text("v2.0",11,SILVER,true); ver.setPadding(dp(12),dp(7),dp(12),dp(7)); ver.setBackground(round(LIGHT,30,SILVER,1)); top.addView(ver); content.addView(top);
+        space(20);
+        LinearLayout hero=card(PANEL); hero.setPadding(dp(17),dp(17),dp(17),dp(17));
+        LinearLayout row=new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.addView(text("●  RHAY TRANSFER",10,WHITE,true),new LinearLayout.LayoutParams(0,-2,1)); row.addView(text("REDE LOCAL",9,SILVER,true)); hero.addView(row);
+        spaceIn(hero,12); hero.addView(text("Seu centro de transferências.",22,WHITE,true)); hero.addView(text("Celular ⇄ PlayStation 4",12,MUTED,false)); spaceIn(hero,16);
+        LinearLayout stats=new LinearLayout(this); stats.addView(stat("0.00 MB/s","VELOCIDADE"),new LinearLayout.LayoutParams(0,-2,1)); stats.addView(stat("0","ENVIOS"),new LinearLayout.LayoutParams(0,-2,1)); hero.addView(stats); content.addView(hero);
+        section("CONEXÃO DO CONSOLE","01"); LinearLayout conn=card(PANEL); conn.setPadding(dp(15),dp(15),dp(15),dp(15));
+        LinearLayout cr=new LinearLayout(this); cr.setGravity(Gravity.CENTER_VERTICAL); cr.addView(text("PlayStation 4",16,WHITE,true),new LinearLayout.LayoutParams(0,-2,1));
+        connectionStatus=text("●  NÃO TESTADO",9,MUTED,true); connectionStatus.setPadding(dp(8),dp(6),dp(8),dp(6)); connectionStatus.setBackground(round(LIGHT,20,MUTED,1)); cr.addView(connectionStatus); conn.addView(cr);
+        spaceIn(conn,12); conn.addView(text("ENDEREÇO IP",9,MUTED,true)); spaceIn(conn,5);
+        ipAddress=new EditText(this); ipAddress.setSingleLine(true); ipAddress.setText(prefs.getString("ip","192.168.1.224")); ipAddress.setTextSize(15); ipAddress.setTextColor(WHITE); ipAddress.setSelectAllOnFocus(true); ipAddress.setPadding(dp(12),0,dp(12),0); ipAddress.setBackground(round(LIGHT,12,Color.rgb(75,75,82),1)); conn.addView(ipAddress,new LinearLayout.LayoutParams(-1,dp(48)));
+        spaceIn(conn,10); Button test=button("TESTAR CONEXÃO FTP",WHITE,BG); conn.addView(test,new LinearLayout.LayoutParams(-1,dp(47))); test.setOnClickListener(v->testFtp());
+        content.addView(conn);
 
-        LinearLayout brand = new LinearLayout(this);
-        brand.setOrientation(LinearLayout.VERTICAL);
-        TextView name = text("RHAY TRANSFER", 22, NEON, true);
-        TextView subtitle = text("LOCAL FILE COMMAND CENTER", 9, MUTED, true);
-        subtitle.setLetterSpacing(0.13f);
-        brand.addView(name);
-        brand.addView(subtitle);
-        top.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
-
-        TextView version = text("v1.7", 11, CYAN, true);
-        version.setGravity(Gravity.CENTER);
-        version.setPadding(dp(12), dp(7), dp(12), dp(7));
-        version.setBackground(round(PANEL_LIGHT, 30, CYAN, 1));
-        top.addView(version);
-        content.addView(top);
-
-        space(24);
-        LinearLayout hero = card(PANEL);
-        hero.setPadding(dp(18), dp(18), dp(18), dp(18));
-
-        LinearLayout statusRow = new LinearLayout(this);
-        statusRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView live = text("●  RHAY TRANSFER", 10, NEON, true);
-        live.setLetterSpacing(0.08f);
-        statusRow.addView(live, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView local = text("REDE LOCAL", 9, CYAN, true);
-        statusRow.addView(local);
-        hero.addView(statusRow);
-
-        spaceIn(hero, 15);
-        hero.addView(text("Envie seus arquivos.", 25, WHITE, true));
-        hero.addView(text("Seu PS4. Seu celular. Uma conexão.", 13, MUTED, false));
-        spaceIn(hero, 18);
-
-        LinearLayout stats = new LinearLayout(this);
-        stats.setOrientation(LinearLayout.HORIZONTAL);
-        stats.addView(statBlock("0 MB/s", "VELOCIDADE", NEON),
-                new LinearLayout.LayoutParams(0, -2, 1));
-        stats.addView(statBlock("0", "ENVIOS", CYAN),
-                new LinearLayout.LayoutParams(0, -2, 1));
-        hero.addView(stats);
-        content.addView(hero);
-
-        section("CONEXÃO DO CONSOLE", "01");
-        LinearLayout connection = card(PANEL);
-        connection.setPadding(dp(16), dp(15), dp(16), dp(16));
-
-        LinearLayout connectionHead = new LinearLayout(this);
-        connectionHead.setGravity(Gravity.CENTER_VERTICAL);
-        connectionHead.addView(text("PlayStation 4", 16, WHITE, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
-        connectionStatus = text("●  NÃO TESTADO", 9, MUTED, true);
-        TextView waiting = connectionStatus;
-        waiting.setPadding(dp(9), dp(6), dp(9), dp(6));
-        waiting.setBackground(round(PANEL_LIGHT, 20, MUTED, 1));
-        connectionHead.addView(waiting);
-        connection.addView(connectionHead);
-
-        spaceIn(connection, 14);
-        connection.addView(text("ENDEREÇO IP", 9, MUTED, true));
-        spaceIn(connection, 6);
-        ipAddress = new EditText(this);
-        ipAddress.setSingleLine(true);
-        ipAddress.setText("192.168.1.224");
-        ipAddress.setTextSize(15);
-        ipAddress.setTextColor(WHITE);
-        ipAddress.setHintTextColor(MUTED);
-        ipAddress.setPadding(dp(13), 0, dp(13), 0);
-        ipAddress.setSelectAllOnFocus(true);
-        ipAddress.setBackground(round(PANEL_LIGHT, 12, Color.rgb(75, 75, 82), 1));
-        connection.addView(ipAddress, new LinearLayout.LayoutParams(-1, dp(49)));
-        spaceIn(connection, 12);
-
-        Button connect = button("CONECTAR AO PS4", NEON, BG);
-        connection.addView(connect, new LinearLayout.LayoutParams(-1, dp(49)));
-        connect.setOnClickListener(v -> testFtp());
-        content.addView(connection);
-
-        section("CENTRAL DE TRANSFERÊNCIA", "02");
-        LinearLayout transfer = card(PANEL);
-        transfer.setPadding(dp(16), dp(16), dp(16), dp(16));
-        transfer.addView(text("Escolha o que deseja enviar", 16, WHITE, true));
-        spaceIn(transfer, 5);
-        transfer.addView(text("PKG, vídeos, músicas, fotos e documentos", 12, MUTED, false));
-        spaceIn(transfer, 4);
-        transfer.addView(text("PKG → /data/pkg   •   Outros arquivos → /data/Rhay Transfer", 10, CYAN, false));
-        spaceIn(transfer, 15);
-
-        selectedFile = text("Nenhum arquivo selecionado", 12, MUTED, false);
-        selectedFile.setPadding(dp(12), dp(13), dp(12), dp(13));
-        selectedFile.setBackground(round(PANEL_LIGHT, 12, Color.TRANSPARENT, 0));
-        transfer.addView(selectedFile);
-        spaceIn(transfer, 12);
-
-        Button choose = button("＋   ESCOLHER ARQUIVO", PANEL_LIGHT, WHITE);
-        transfer.addView(choose, new LinearLayout.LayoutParams(-1, dp(48)));
-        choose.setOnClickListener(v -> chooseFile());
-
-        spaceIn(transfer, 10);
-        Button send = button("INICIAR TRANSFERÊNCIA  →", NEON, BG);
-        transfer.addView(send, new LinearLayout.LayoutParams(-1, dp(51)));
-        send.setOnClickListener(v -> sendSelectedFile());
+        section("CENTRAL DE TRANSFERÊNCIA","02"); LinearLayout transfer=card(PANEL); transfer.setPadding(dp(15),dp(15),dp(15),dp(15));
+        transfer.addView(text("Selecione seus arquivos",16,WHITE,true)); spaceIn(transfer,4); transfer.addView(text("PKG, fotos, vídeos, músicas e documentos",12,MUTED,false));
+        spaceIn(transfer,8); transfer.addView(text("PKG → /data/pkg",10,SILVER,true)); transfer.addView(text("Outros → "+commonDirectory,10,SILVER,false)); spaceIn(transfer,12);
+        selectedFile=text("Nenhum arquivo selecionado",12,MUTED,false); selectedFile.setPadding(dp(11),dp(12),dp(11),dp(12)); selectedFile.setBackground(round(LIGHT,11,Color.TRANSPARENT,0)); transfer.addView(selectedFile);
+        spaceIn(transfer,10); Button one=button("＋  ESCOLHER ARQUIVO",LIGHT,WHITE); transfer.addView(one,new LinearLayout.LayoutParams(-1,dp(46))); one.setOnClickListener(v->chooseFiles(false));
+        spaceIn(transfer,7); Button many=button("＋  SELECIONAR VÁRIOS",LIGHT,WHITE); transfer.addView(many,new LinearLayout.LayoutParams(-1,dp(46))); many.setOnClickListener(v->chooseFiles(true));
+        spaceIn(transfer,10); Button send=button("INICIAR FILA DE ENVIO  →",WHITE,BG); transfer.addView(send,new LinearLayout.LayoutParams(-1,dp(50))); send.setOnClickListener(v->startQueue());
         content.addView(transfer);
 
-        section("ATIVIDADE", "03");
-        LinearLayout activity = card(PANEL);
-        activity.setPadding(dp(16), dp(15), dp(16), dp(15));
-        LinearLayout activityRow = new LinearLayout(this);
-        activityRow.setGravity(Gravity.CENTER_VERTICAL);
-        activityRow.addView(text("Velocidade atual", 13, WHITE, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
-        activityRow.addView(text("0.00 MB/s", 17, NEON, true));
-        activity.addView(activityRow);
-        spaceIn(activity, 12);
-        View track = new View(this);
-        track.setBackground(round(PANEL_LIGHT, 20, Color.TRANSPARENT, 0));
-        activity.addView(track, new LinearLayout.LayoutParams(-1, dp(7)));
-        spaceIn(activity, 12);
-        activity.addView(text("Nenhuma transferência em andamento", 11, MUTED, false));
+        section("TRANSFERÊNCIA EM TEMPO REAL","03"); LinearLayout activity=card(PANEL); activity.setPadding(dp(15),dp(15),dp(15),dp(15));
+        LinearLayout speedRow=new LinearLayout(this); speedRow.setGravity(Gravity.CENTER_VERTICAL); speedRow.addView(text("VELOCIDADE ATUAL",9,MUTED,true),new LinearLayout.LayoutParams(0,-2,1));
+        speedValue=text("0.00 MB/s",22,WHITE,true); speedRow.addView(speedValue); activity.addView(speedRow);
+        spaceIn(activity,12); progressBar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); progressBar.setMax(100); progressBar.setProgress(0); activity.addView(progressBar,new LinearLayout.LayoutParams(-1,dp(8)));
+        spaceIn(activity,8); LinearLayout pr=new LinearLayout(this); pr.addView(text("Progresso",11,MUTED,false),new LinearLayout.LayoutParams(0,-2,1)); progressLabel=text("0%",12,WHITE,true); pr.addView(progressLabel); activity.addView(pr);
+        spaceIn(activity,5); etaLabel=text("Tempo restante: —",11,MUTED,false); activity.addView(etaLabel);
+        spaceIn(activity,8); transferStatus=text("Aguardando transferência",11,MUTED,false); activity.addView(transferStatus);
         content.addView(activity);
 
-        section("ATALHOS", "04");
-        LinearLayout shortcuts = new LinearLayout(this);
-        shortcuts.setOrientation(LinearLayout.HORIZONTAL);
-        shortcuts.addView(shortcut("▣", "Arquivos"),
-                new LinearLayout.LayoutParams(0, dp(82), 1));
-        shortcuts.addView(shortcut("↗", "Enviar"),
-                new LinearLayout.LayoutParams(0, dp(82), 1));
-        shortcuts.addView(shortcut("◷", "Histórico"),
-                new LinearLayout.LayoutParams(0, dp(82), 1));
-        content.addView(shortcuts);
-
-        space(22);
-        TextView footer = text("RHAY TRANSFER  •  FEITO PARA SUA REDE", 9, MUTED, true);
-        footer.setGravity(Gravity.CENTER);
-        footer.setLetterSpacing(0.08f);
-        content.addView(footer);
+        section("FERRAMENTAS DO PS4","04"); LinearLayout tools=new LinearLayout(this); tools.setOrientation(1);
+        Button browse=button("▣  GERENCIADOR DE ARQUIVOS DO PS4",LIGHT,WHITE); tools.addView(browse,new LinearLayout.LayoutParams(-1,dp(46))); browse.setOnClickListener(v->openRemoteManager());
+        spaceIn(tools,7); Button history=button("◷  HISTÓRICO DE TRANSFERÊNCIAS",LIGHT,WHITE); tools.addView(history,new LinearLayout.LayoutParams(-1,dp(46))); history.setOnClickListener(v->showHistory());
+        spaceIn(tools,7); Button clear=button("LIMPAR FILA DE ENVIO",LIGHT,WHITE); tools.addView(clear,new LinearLayout.LayoutParams(-1,dp(42))); clear.setOnClickListener(v->{if(!sending){queue.clear();queueNames.clear();selectedUri=null;selectedFile.setText("Fila vazia");progressBar.setProgress(0);progressLabel.setText("0%");}else Toast.makeText(this,"Aguarde o envio atual terminar.",Toast.LENGTH_SHORT).show();});
+        content.addView(tools);
+        space(20); TextView foot=text("RHAY TRANSFER  •  FEITO PARA SUA REDE",9,MUTED,true); foot.setGravity(Gravity.CENTER); foot.setLetterSpacing(.08f); content.addView(foot);
     }
 
-    private void chooseFile() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.setType("*/*");
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        startActivityForResult(intent, 100);
+    private void chooseFiles(boolean multiple) {
+        Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("*/*"); i.addCategory(Intent.CATEGORY_OPENABLE);
+        if(multiple){i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);startActivityForResult(i,PICK_MULTI);}else startActivityForResult(i,PICK);
     }
-
-
-    private String getFileName(Uri uri) {
-        String name = uri.getLastPathSegment();
-        try (Cursor c = getContentResolver().query(uri, null, null, null, null)) {
-            if (c != null && c.moveToFirst()) {
-                int i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                if (i >= 0) name = c.getString(i);
-            }
-        } catch (Exception ignored) {}
-        return name == null ? "arquivo" : name.replaceAll("[\\\\/\\\\r\\\\n]", "_");
+    private String fileName(Uri uri) {
+        String n=uri.getLastPathSegment();
+        try(Cursor c=getContentResolver().query(uri,null,null,null,null)){if(c!=null&&c.moveToFirst()){int x=c.getColumnIndex(OpenableColumns.DISPLAY_NAME);if(x>=0)n=c.getString(x);}}catch(Exception ignored){}
+        return n==null?"arquivo":n.replaceAll("[\\\\/\\r\\n]","_");
     }
-
-    private String getIp() {
-        String ip = ipAddress.getText().toString().trim();
-        if (ip.isEmpty()) throw new IllegalArgumentException("Informe o IP do PS4.");
-        return ip;
+    private long fileLength(Uri uri) {
+        try(android.content.res.AssetFileDescriptor a=getContentResolver().openAssetFileDescriptor(uri,"r")){return a==null?-1:a.getLength();}catch(Exception e){return -1;}
     }
-
-    private void testFtp() {
-        final String ip;
-        try { ip = getIp(); } catch (Exception e) {
-            Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show(); return;
-        }
-        connectionStatus.setText("●  TESTANDO...");
-        connectionStatus.setTextColor(CYAN);
-        io.execute(() -> {
-            FtpClient ftp = new FtpClient(ip, 2121);
-            try {
-                String result = ftp.connectAndLogin();
-                main.post(() -> {
-                    connectionStatus.setText("●  CONECTADO");
-                    connectionStatus.setTextColor(NEON);
-                    Toast.makeText(this, result, Toast.LENGTH_LONG).show();
-                });
-            } catch (Exception e) {
-                main.post(() -> {
-                    connectionStatus.setText("●  FALHA NA CONEXÃO");
-                    connectionStatus.setTextColor(MUTED);
-                    Toast.makeText(this, "Não conectou: " + e.getMessage()
-                            + "\\nConfira FTP ativo, IP e Wi-Fi.", Toast.LENGTH_LONG).show();
-                });
-            } finally { ftp.close(); }
+    private String ip(){String s=ipAddress.getText().toString().trim();if(s.isEmpty())throw new IllegalArgumentException("Informe o IP do PS4.");prefs.edit().putString("ip",s).apply();return s;}
+    private void testFtp(){
+        final String host;try{host=ip();}catch(Exception e){toast(e.getMessage());return;}
+        connectionStatus.setText("● TESTANDO..."); connectionStatus.setTextColor(SILVER);
+        io.execute(()->{FtpClient f=new FtpClient(host,2121);try{String r=f.connectAndLogin();main.post(()->{connectionStatus.setText("● CONECTADO");connectionStatus.setTextColor(WHITE);toast(r);});}
+        catch(Exception e){main.post(()->{connectionStatus.setText("● FALHA");connectionStatus.setTextColor(MUTED);toast("Falha: "+e.getMessage());});}finally{f.close();}});
+    }
+    private void startQueue(){
+        if(sending){toast("Já existe uma transferência em andamento.");return;}
+        if(queue.isEmpty()&&selectedUri!=null){queue.add(selectedUri);queueNames.add(fileName(selectedUri));}
+        if(queue.isEmpty()){toast("Selecione pelo menos um arquivo.");return;}
+        final String host;try{host=ip();}catch(Exception e){toast(e.getMessage());return;}
+        sending=true; sentCount=null; transferStatus.setText("Preparando fila...");
+        ArrayList<Uri> items=new ArrayList<>(queue); ArrayList<String> names=new ArrayList<>(queueNames);
+        io.execute(()->{
+            int ok=0; FtpClient ftp=null;
+            try{
+                ftp=new FtpClient(host,2121);ftp.connectAndLogin();
+                for(int idx=0;idx<items.size();idx++){
+                    final int current=idx;Uri uri=items.get(idx);String name=names.get(idx);
+                    final boolean pkg=name.toLowerCase(Locale.ROOT).endsWith(".pkg");
+                    final String folder=pkg?"/data/pkg":commonDirectory;
+                    long total=fileLength(uri);final long start=System.currentTimeMillis();
+                    final long[] lastBytes={0};final long[] lastTime={start};
+                    main.post(()->{transferStatus.setText("Enviando "+(current+1)+"/"+items.size()+": "+name);progressBar.setProgress(0);progressLabel.setText("0%");etaLabel.setText("Calculando tempo restante...");speedValue.setText("0.00 MB/s");selectedFile.setText("ENVIANDO: "+name);});
+                    ftp.upload(new FtpClient.UriSource(){public InputStream open()throws java.io.IOException{return getContentResolver().openInputStream(uri);}public long length(){return total;}},folder+"/"+name,(sent,size)->{
+                        long now=System.currentTimeMillis();if(now-lastTime[0]>=250||sent==size){long delta=sent-lastBytes[0];double speed=delta/1024d/1024d/Math.max(.001,(now-lastTime[0])/1000d);lastBytes[0]=sent;lastTime[0]=now;
+                            int percent=size>0?(int)Math.min(100,sent*100/size):0;long remaining=size>sent&&speed>0?(long)((size-sent)/(speed*1024d*1024d)): -1;
+                            String eta=remaining<0?"Tempo restante: —":"Tempo restante: "+formatTime(remaining);
+                            main.post(()->{speedValue.setText(df.format(speed)+" MB/s");progressBar.setProgress(percent);progressLabel.setText(size>0?percent+"%  •  "+human(sent)+" / "+human(size):human(sent)+" enviados");etaLabel.setText(eta);});
+                        }});
+                    ok++;addHistory(name,folder,true,total);
+                }
+                final int done=ok;main.post(()->{sending=false;transferStatus.setText("Concluído: "+done+" arquivo(s) enviado(s)");progressBar.setProgress(100);progressLabel.setText("100%");etaLabel.setText("Fila concluída");selectedFile.setText("ENVIO CONCLUÍDO — "+done+" arquivo(s)");toast("Transferência concluída! Arquivos enviados ao PS4.");notifyDone("Transferência concluída",done+" arquivo(s) enviados ao PS4.");queue.clear();queueNames.clear();selectedUri=null;});
+            }catch(Exception e){String error=e.getMessage()==null?"Erro desconhecido":e.getMessage();addHistory("Fila",commonDirectory,false,0);main.post(()->{sending=false;transferStatus.setText("Falha: "+error);etaLabel.setText("Verifique a conexão e tente novamente.");toast("Falha no envio: "+error);notifyDone("Falha na transferência",error);});}
+            finally{if(ftp!=null)ftp.close();}
         });
     }
-
-    private void sendSelectedFile() {
-        if (selectedUri == null) {
-            Toast.makeText(this, "Escolha um arquivo primeiro.", Toast.LENGTH_LONG).show(); return;
-        }
-        final String ip;
-        try { ip = getIp(); } catch (Exception e) {
-            Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show(); return;
-        }
-        String name = getFileName(selectedUri);
-        final Uri uri = selectedUri;
-        final boolean isPkg = name.toLowerCase().endsWith(".pkg");
-        final String directory = isPkg ? "/data/pkg" : "/data/Rhay Transfer";
-        final String remote = directory + "/" + name;
-        Toast.makeText(this, "Enviando arquivo para " + directory + " no PS4...", Toast.LENGTH_LONG).show();
-        io.execute(() -> {
-            FtpClient ftp = new FtpClient(ip, 2121);
-            try {
-                ftp.connectAndLogin();
-                ftp.upload(new FtpClient.UriSource() {
-                    public InputStream open() throws java.io.IOException {
-                        return getContentResolver().openInputStream(uri);
-                    }
-                    public long length() {
-                        try (android.content.res.AssetFileDescriptor afd = getContentResolver().openAssetFileDescriptor(uri, "r")) {
-                            return afd == null ? -1 : afd.getLength();
-                        } catch (Exception e) { return -1; }
-                    }
-                }, remote, (sent, total) -> main.post(() ->
-                        selectedFile.setText("ENVIANDO: " + name + "\\n" + sent / 1024 / 1024 + " MB enviados")));
-                main.post(() -> {
-                    selectedFile.setText("ENVIO CONCLUÍDO\\n" + name);
-                    String message = isPkg
-                            ? "PKG enviado para /data/pkg. Agora instale pelo Package Installer do PS4."
-                            : "Arquivo enviado para /data/Rhay Transfer no PS4.";
-                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-                });
-            } catch (Exception e) {
-                main.post(() -> Toast.makeText(this, "Falha no envio: " + e.getMessage(), Toast.LENGTH_LONG).show());
-            } finally { ftp.close(); }
-        });
+    private void addHistory(String name,String path,boolean success,long bytes){
+        synchronized(this){String old=prefs.getString("history","");String line=(success?"OK":"ERRO")+"|"+System.currentTimeMillis()+"|"+name+"|"+path+"|"+bytes;
+            String all=line+(old.isEmpty()?"":"\n"+old);String[] lines=all.split("\n");StringBuilder b=new StringBuilder();for(int i=0;i<Math.min(50,lines.length);i++){if(i>0)b.append("\n");b.append(lines[i]);}prefs.edit().putString("history",b.toString()).apply();int count=prefs.getInt("sent_count",0)+(success?1:0);prefs.edit().putInt("sent_count",count).apply();}
     }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        io.shutdownNow();
+    private void showHistory(){
+        String raw=prefs.getString("history","");if(raw.isEmpty()){new AlertDialog.Builder(this).setTitle("Histórico").setMessage("Nenhuma transferência registrada ainda.").setPositiveButton("OK",null).show();return;}
+        StringBuilder b=new StringBuilder();for(String line:raw.split("\n")){String[] p=line.split("\\|",5);if(p.length>=5){String date=new SimpleDateFormat("dd/MM HH:mm",Locale.getDefault()).format(new Date(Long.parseLong(p[1])));b.append(p[0].equals("OK")?"✓ ":"✕ ").append(date).append("  ").append(p[2]).append("\n").append(p[3]).append(" • ").append(human(parseLong(p[4]))).append("\n\n");}}
+        new AlertDialog.Builder(this).setTitle("Histórico de transferências").setMessage(b.toString()).setPositiveButton("Fechar",null).setNeutralButton("Limpar histórico",(d,w)->prefs.edit().remove("history").putInt("sent_count",0).apply()).show();
     }
-
-    private LinearLayout statBlock(String value, String label, int color) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.addView(text(value, 21, color, true));
-        box.addView(text(label, 9, MUTED, true));
-        return box;
+    private void openRemoteManager(){final String host;try{host=ip();}catch(Exception e){toast(e.getMessage());return;}browseDirectory(host,"/data");}
+    private void browseDirectory(String host,String path){
+        io.execute(()->{FtpClient f=new FtpClient(host,2121);try{f.connectAndLogin();List<FtpClient.RemoteEntry> entries=f.listDirectory(path);main.post(()->{
+            ArrayList<String> labels=new ArrayList<>();for(FtpClient.RemoteEntry e:entries)labels.add((e.directory?"📁  ":"📄  ")+e.name);
+            String[] items=labels.toArray(new String[0]);AlertDialog.Builder dlg=new AlertDialog.Builder(this).setTitle("PS4 • "+path).setItems(items,(d,which)->{FtpClient.RemoteEntry e=entries.get(which);if(e.directory)browseDirectory(host,(path.equals("/")?"":path)+"/"+e.name);else toast("Arquivo: "+e.name);});
+            dlg.setPositiveButton("Usar esta pasta para arquivos comuns",(d,w)->{commonDirectory=path;prefs.edit().putString("common_dir",path).apply();toast("Destino atualizado: "+path);rebuild();});
+            dlg.setNegativeButton("Fechar",null);if(!path.equals("/"))dlg.setNeutralButton("Voltar",(d,w)->{int slash=path.lastIndexOf('/');browseDirectory(host,slash<=0?"/":path.substring(0,slash));});dlg.show();
+        });}catch(Exception e){main.post(()->toast("Não foi possível listar "+path+": "+e.getMessage()));}finally{f.close();}});
     }
-
-    private LinearLayout shortcut(String symbol, String label) {
-        LinearLayout box = card(PANEL_LIGHT);
-        box.setGravity(Gravity.CENTER);
-        box.setOrientation(LinearLayout.VERTICAL);
-        TextView icon = text(symbol, 23, NEON, true);
-        icon.setGravity(Gravity.CENTER);
-        box.addView(icon);
-        TextView caption = text(label, 10, WHITE, true);
-        caption.setGravity(Gravity.CENTER);
-        box.addView(caption);
-        LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) box.getLayoutParams();
-        return box;
+    private void rebuild(){buildDashboard();}
+    private void notifyDone(String title,String message){
+        try{NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);Intent i=new Intent(this,MainActivity.class);PendingIntent pi=PendingIntent.getActivity(this,0,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+            android.app.Notification.Builder n=Build.VERSION.SDK_INT>=26?new android.app.Notification.Builder(this,"rhay_transfer"):new android.app.Notification.Builder(this);
+            n.setSmallIcon(android.R.drawable.stat_sys_upload_done).setContentTitle(title).setContentText(message).setAutoCancel(true).setContentIntent(pi);nm.notify(1,n.build());
+        }catch(Exception ignored){}
     }
-
-    private void section(String title, String number) {
-        space(21);
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        TextView heading = text(title, 11, WHITE, true);
-        heading.setLetterSpacing(0.1f);
-        row.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
-        row.addView(text(number, 10, CYAN, true));
-        content.addView(row);
-        space(9);
+    private void createNotificationChannel(){if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel("rhay_transfer","Rhay Transfer",NotificationManager.IMPORTANCE_DEFAULT);((NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(c);}}
+    private String human(long n){if(n<0)return "tamanho desconhecido";if(n<1024)return n+" B";if(n<1048576)return df.format(n/1024d)+" KB";if(n<1073741824)return df.format(n/1048576d)+" MB";return df.format(n/1073741824d)+" GB";}
+    private String formatTime(long s){return s>=3600?(s/3600)+"h "+(s%3600/60)+"m":s>=60?(s/60)+"m "+(s%60)+"s":s+"s";}
+    private long parseLong(String s){try{return Long.parseLong(s);}catch(Exception e){return 0;}}
+    private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
+    private LinearLayout stat(String value,String label){LinearLayout x=new LinearLayout(this);x.setOrientation(1);x.addView(text(value,20,WHITE,true));x.addView(text(label,9,MUTED,true));return x;}
+    private void section(String s,String n){space(19);LinearLayout r=new LinearLayout(this);r.setGravity(Gravity.CENTER_VERTICAL);r.addView(text(s,10,WHITE,true),new LinearLayout.LayoutParams(0,-2,1));r.addView(text(n,10,SILVER,true));content.addView(r);space(8);}
+    private LinearLayout card(int c){LinearLayout x=new LinearLayout(this);x.setOrientation(1);x.setBackground(round(c,17,Color.rgb(58,58,64),1));return x;}
+    private Button button(String s,int bg,int fg){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextSize(11);b.setTextColor(fg);b.setTypeface(null,Typeface.BOLD);b.setBackground(round(bg,12,bg,0));return b;}
+    private TextView text(String s,int size,int color,boolean bold){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);if(bold)t.setTypeface(null,Typeface.BOLD);return t;}
+    private GradientDrawable round(int c,int r,int stroke,int sw){GradientDrawable d=new GradientDrawable();d.setColor(c);d.setCornerRadius(dp(r));if(sw>0)d.setStroke(dp(sw),stroke);return d;}
+    private void space(int h){View v=new View(this);content.addView(v,new LinearLayout.LayoutParams(1,dp(h)));}
+    private void spaceIn(LinearLayout p,int h){View v=new View(this);p.addView(v,new LinearLayout.LayoutParams(1,dp(h)));}
+    private int dp(int v){return (int)(v*getResources().getDisplayMetrics().density+.5f);}
+    @Override protected void onActivityResult(int req,int result,Intent data){super.onActivityResult(req,result,data);if(result!=RESULT_OK||data==null)return;
+        if(req==PICK){Uri u=data.getData();if(u!=null){selectedUri=u;queue.clear();queueNames.clear();queue.add(u);queueNames.add(fileName(u));selectedFile.setText("1 arquivo: "+fileName(u));}}
+        else if(req==PICK_MULTI){queue.clear();queueNames.clear();if(data.getClipData()!=null){for(int i=0;i<data.getClipData().getItemCount();i++){Uri u=data.getClipData().getItemAt(i).getUri();queue.add(u);queueNames.add(fileName(u));}}else if(data.getData()!=null){queue.add(data.getData());queueNames.add(fileName(data.getData()));}selectedUri=null;selectedFile.setText(queue.size()+" arquivo(s) na fila");}
     }
-
-    private LinearLayout card(int color) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setBackground(round(color, 18, Color.rgb(58, 58, 64), 1));
-        return box;
-    }
-
-    private Button button(String label, int color, int textColor) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setAllCaps(false);
-        b.setTextSize(12);
-        b.setTextColor(textColor);
-        b.setTypeface(null, Typeface.BOLD);
-        b.setLetterSpacing(0.03f);
-        b.setBackground(round(color, 13, color, 0));
-        return b;
-    }
-
-    private TextView text(String value, int size, int color, boolean bold) {
-        TextView t = new TextView(this);
-        t.setText(value);
-        t.setTextSize(size);
-        t.setTextColor(color);
-        if (bold) t.setTypeface(null, Typeface.BOLD);
-        return t;
-    }
-
-    private GradientDrawable round(int color, int radius, int strokeColor, int strokeWidth) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
-        d.setCornerRadius(dp(radius));
-        if (strokeWidth > 0) d.setStroke(dp(strokeWidth), strokeColor);
-        return d;
-    }
-
-    private void space(int height) {
-        View v = new View(this);
-        content.addView(v, new LinearLayout.LayoutParams(1, dp(height)));
-    }
-
-    private void spaceIn(LinearLayout parent, int height) {
-        View v = new View(this);
-        parent.addView(v, new LinearLayout.LayoutParams(1, dp(height)));
-    }
-
-    private int dp(int value) {
-        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == 100 && resultCode == RESULT_OK && data != null) {
-            Uri uri = data.getData();
-            if (uri != null) {
-                selectedUri = uri;
-                String name = getFileName(uri);
-                selectedFile.setText("ARQUIVO SELECIONADO\\n" + name);
-                selectedFile.setTextColor(NEON);
-            }
-        }
-    }
+    @Override protected void onDestroy(){super.onDestroy();io.shutdownNow();}
 }
