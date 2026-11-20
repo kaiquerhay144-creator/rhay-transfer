@@ -3,110 +3,43 @@ package com.rhaytransfer;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.util.*;
 import java.util.regex.*;
 
 public final class FtpClient {
-    public interface Progress { void onProgress(long sent, long total); }
-    private final String host;
-    private final int port;
-    private Socket control;
-    private BufferedReader reader;
-    private BufferedWriter writer;
-
-    public FtpClient(String host, int port) { this.host = host; this.port = port; }
-
-    private String response() throws IOException {
-        String line = reader.readLine();
-        if (line == null) throw new IOException("O PS4 encerrou a conexão FTP.");
-        StringBuilder result = new StringBuilder(line);
-        if (line.length() >= 4 && line.charAt(3) == '-') {
-            String end = line.substring(0, 3) + " ";
-            while ((line = reader.readLine()) != null) {
-                result.append("\n").append(line);
-                if (line.startsWith(end)) break;
-            }
-        }
-        return result.toString();
+    public interface Progress { void onProgress(long sent,long total); }
+    public interface UriSource { InputStream open() throws IOException; long length(); }
+    public static final class RemoteEntry { public final String name; public final boolean directory; RemoteEntry(String n,boolean d){name=n;directory=d;} }
+    private final String host; private final int port; private Socket control; private BufferedReader reader; private BufferedWriter writer;
+    public FtpClient(String h,int p){host=h;port=p;}
+    private String response()throws IOException{String line=reader.readLine();if(line==null)throw new IOException("O PS4 encerrou a conexão FTP.");StringBuilder b=new StringBuilder(line);if(line.length()>=4&&line.charAt(3)=='-'){String end=line.substring(0,3)+" ";while((line=reader.readLine())!=null){b.append("\n").append(line);if(line.startsWith(end))break;}}return b.toString();}
+    private String command(String c)throws IOException{writer.write(c+"\r\n");writer.flush();return response();}
+    public String connectAndLogin()throws IOException{
+        control=new Socket();control.connect(new InetSocketAddress(host,port),5000);control.setSoTimeout(30000);control.setTcpNoDelay(true);
+        reader=new BufferedReader(new InputStreamReader(control.getInputStream(),StandardCharsets.US_ASCII));writer=new BufferedWriter(new OutputStreamWriter(control.getOutputStream(),StandardCharsets.US_ASCII));
+        String g=response();if(!g.startsWith("2"))throw new IOException("Resposta FTP inesperada: "+g);
+        String u=command("USER anonymous");if(u.startsWith("3"))u=command("PASS rhaytransfer@android");if(!u.startsWith("2"))throw new IOException("Login FTP recusado: "+u);return "FTP conectado e login aceito.";
     }
-
-    private String command(String value) throws IOException {
-        writer.write(value + "\r\n");
-        writer.flush();
-        return response();
+    private Socket dataSocket(String pasv)throws IOException{
+        Matcher m=Pattern.compile("(\\d+),(\\d+),(\\d+),(\\d+),(\\d+),(\\d+)").matcher(pasv);if(!m.find())throw new IOException("Resposta PASV inválida: "+pasv);
+        String h=m.group(1)+"."+m.group(2)+"."+m.group(3)+"."+m.group(4);int p=Integer.parseInt(m.group(5))*256+Integer.parseInt(m.group(6));
+        Socket s=new Socket();s.connect(new InetSocketAddress(h,p),10000);s.setSoTimeout(30000);s.setTcpNoDelay(true);return s;
     }
-
-    private static boolean ok(String r) {
-        return r.startsWith("2") || r.startsWith("3");
+    public void upload(UriSource src,String remote,Progress progress)throws IOException{
+        String type=command("TYPE I");if(!type.startsWith("2"))throw new IOException("Não foi possível ativar modo binário: "+type);
+        int slash=remote.lastIndexOf('/');if(slash<=0||slash==remote.length()-1)throw new IOException("Caminho de destino inválido: "+remote);
+        String dir=remote.substring(0,slash),name=remote.substring(slash+1);String cwd=command("CWD "+dir);
+        if(!cwd.startsWith("2")){String parent=dir.substring(0,dir.lastIndexOf('/'));String folder=dir.substring(dir.lastIndexOf('/')+1);String pc=command("CWD "+parent);if(!pc.startsWith("2"))throw new IOException("Sem acesso a "+dir+": "+pc);command("MKD "+folder);cwd=command("CWD "+dir);if(!cwd.startsWith("2"))throw new IOException("Não foi possível criar/acessar "+dir+": "+cwd);}
+        Socket data=dataSocket(command("PASV"));String stor=command("STOR "+name);if(!stor.startsWith("1")){data.close();throw new IOException("PS4 recusou o envio: "+stor);}
+        long total=src.length(),sent=0;
+        try(InputStream in=src.open();OutputStream out=data.getOutputStream()){byte[] buf=new byte[256*1024];int n;while((n=in.read(buf))!=-1){out.write(buf,0,n);sent+=n;if(progress!=null)progress.onProgress(sent,total);}out.flush();}finally{data.close();}
+        String done=response();if(!done.startsWith("2"))throw new IOException("Falha ao concluir envio: "+done);
     }
-
-    public String connectAndLogin() throws IOException {
-        control = new Socket();
-        control.connect(new InetSocketAddress(host, port), 5000);
-        control.setSoTimeout(7000);
-        reader = new BufferedReader(new InputStreamReader(control.getInputStream(), StandardCharsets.US_ASCII));
-        writer = new BufferedWriter(new OutputStreamWriter(control.getOutputStream(), StandardCharsets.US_ASCII));
-        String greeting = response();
-        if (!greeting.startsWith("2")) throw new IOException("Resposta FTP inesperada: " + greeting);
-        String user = command("USER anonymous");
-        if (user.startsWith("3")) user = command("PASS rhaytransfer@android");
-        if (!user.startsWith("2")) throw new IOException("Login FTP recusado: " + user);
-        return "FTP conectado e login aceito.";
+    public List<RemoteEntry> listDirectory(String path)throws IOException{
+        String c=command("CWD "+path);if(!c.startsWith("2"))throw new IOException("CWD falhou: "+c);
+        Socket data=dataSocket(command("PASV"));String l=command("LIST");if(!l.startsWith("1")){data.close();throw new IOException("LIST recusado: "+l);}
+        ArrayList<RemoteEntry> result=new ArrayList<>();try(BufferedReader r=new BufferedReader(new InputStreamReader(data.getInputStream(),StandardCharsets.UTF_8))){String line;while((line=r.readLine())!=null){String trimmed=line.trim();if(trimmed.isEmpty())continue;String[] parts=trimmed.split("\\s+",9);if(parts.length<9)continue;String name=parts[8];if(name.equals(".")||name.equals(".."))continue;boolean dir=parts[0].startsWith("d");result.add(new RemoteEntry(name,dir));}}finally{data.close();}
+        String done=response();if(!done.startsWith("2"))throw new IOException("LIST não concluiu: "+done);return result;
     }
-
-    public void upload(UriSource source, String remotePath, Progress progress) throws IOException {
-        String type = command("TYPE I");
-        if (!type.startsWith("2")) throw new IOException("Não foi possível ativar modo binário: " + type);
-        int slash = remotePath.lastIndexOf('/');
-        if (slash <= 0 || slash == remotePath.length() - 1)
-            throw new IOException("Caminho de destino inválido: " + remotePath);
-        String directory = remotePath.substring(0, slash);
-        String filename = remotePath.substring(slash + 1);
-        String cwd = command("CWD " + directory);
-        if (!cwd.startsWith("2")) {
-            String parent = directory.substring(0, directory.lastIndexOf('/'));
-            String folder = directory.substring(directory.lastIndexOf('/') + 1);
-            String parentCwd = command("CWD " + parent);
-            if (!parentCwd.startsWith("2"))
-                throw new IOException("PS4 não permite acessar " + directory + ": " + parentCwd);
-            command("MKD " + folder);
-            cwd = command("CWD " + directory);
-            if (!cwd.startsWith("2"))
-                throw new IOException("Não foi possível acessar/criar a pasta " + directory + ": " + cwd);
-        }
-        String pasv = command("PASV");
-        Matcher m = Pattern.compile("(\\d+),(\\d+),(\\d+),(\\d+),(\\d+),(\\d+)").matcher(pasv);
-        if (!m.find()) throw new IOException("O PS4 não informou uma conexão passiva: " + pasv);
-        String dataHost = m.group(1)+"."+m.group(2)+"."+m.group(3)+"."+m.group(4);
-        int dataPort = Integer.parseInt(m.group(5))*256 + Integer.parseInt(m.group(6));
-        Socket data = new Socket();
-        data.connect(new InetSocketAddress(dataHost, dataPort), 7000);
-        String stor = command("STOR " + filename);
-        if (!stor.startsWith("1")) { data.close(); throw new IOException("PS4 recusou o envio: " + stor); }
-        long total = source.length();
-        long sent = 0;
-        try (InputStream in = source.open(); OutputStream out = data.getOutputStream()) {
-            byte[] buffer = new byte[64 * 1024];
-            int count;
-            while ((count = in.read(buffer)) != -1) {
-                out.write(buffer, 0, count);
-                sent += count;
-                if (progress != null) progress.onProgress(sent, total);
-            }
-            out.flush();
-        } finally {
-            data.close();
-        }
-        String complete = response();
-        if (!complete.startsWith("2")) throw new IOException("Falha ao concluir envio: " + complete);
-    }
-
-    public void close() {
-        try { if (control != null && control.isConnected()) command("QUIT"); } catch (Exception ignored) {}
-        try { if (control != null) control.close(); } catch (Exception ignored) {}
-    }
-
-    public interface UriSource {
-        InputStream open() throws IOException;
-        long length();
-    }
+    public void close(){try{if(control!=null&&control.isConnected())command("QUIT");}catch(Exception ignored){}try{if(control!=null)control.close();}catch(Exception ignored){}}
 }
