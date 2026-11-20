@@ -19,11 +19,17 @@ public class TransferService extends Service {
     private PowerManager.WakeLock cpuLock;
     private android.net.wifi.WifiManager.WifiLock wifiLock;
     private volatile boolean running=false;
+    private volatile boolean paused=false,cancelled=false;
+    private final Object pauseLock=new Object();
     private final DecimalFormat df=new DecimalFormat("0.0");
 
     @Override public void onCreate(){super.onCreate();NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);nm.cancel(2201);if(Build.VERSION.SDK_INT>=26)nm.deleteNotificationChannel("rhay_transfer_running");createChannel();}
     @Override public int onStartCommand(Intent intent,int flags,int startId){
         if(intent==null){stopSelf(startId);return START_NOT_STICKY;}
+        String action=intent.getAction();
+        if("com.rhaytransfer.PAUSE".equals(action)){pauseTransfer();return START_NOT_STICKY;}
+        if("com.rhaytransfer.RESUME".equals(action)){resumeTransfer();return START_NOT_STICKY;}
+        if("com.rhaytransfer.CANCEL".equals(action)){cancelTransfer();return START_NOT_STICKY;}
         String host=intent.getStringExtra("host");
         ArrayList<String> names=intent.getStringArrayListExtra("names");
         ArrayList<Uri> uris;
@@ -32,7 +38,7 @@ public class TransferService extends Service {
         String common=intent.getStringExtra("common_dir");
         if(host==null||uris==null||names==null||uris.isEmpty()||names.size()!=uris.size()){stopSelf(startId);return START_NOT_STICKY;}
         if(running)return START_NOT_STICKY;
-        running=true;
+        running=true;paused=false;cancelled=false;
         Notification initial=buildNotification("Preparando transferência","PS4 Transfer está enviando arquivos ao console",0,false);
         if(Build.VERSION.SDK_INT>=29)startForeground(NOTIFICATION_ID,initial,ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         else startForeground(NOTIFICATION_ID,initial);
@@ -41,6 +47,10 @@ public class TransferService extends Service {
         worker.execute(()->transfer(host,uris,names,destination));
         return START_NOT_STICKY;
     }
+    private void pauseTransfer(){if(!running||paused)return;paused=true;updateNotification("Transferência pausada","Toque em Continuar no aplicativo",0,true);broadcast("paused",0,0,"Pausado","Envio pausado","Transferência pausada pelo usuário.");}
+    private void resumeTransfer(){if(!running||!paused)return;synchronized(pauseLock){paused=false;pauseLock.notifyAll();}broadcast("resumed",0,0,"Retomando...","Aguarde","Transferência retomada.");}
+    private void cancelTransfer(){if(!running)return;cancelled=true;synchronized(pauseLock){paused=false;pauseLock.notifyAll();}updateNotification("Cancelando transferência","Interrompendo o envio...",0,true);}
+    private void checkpoint()throws IOException{synchronized(pauseLock){while(paused&&!cancelled){try{pauseLock.wait();}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("Transferência interrompida.");}}}if(cancelled)throw new IOException("Transferência cancelada pelo usuário.");}
     private void acquireLocks(){
         try{PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);cpuLock=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"RhayTransfer:Cpu");cpuLock.acquire(6*60*60*1000L);}catch(Exception ignored){}
         try{android.net.wifi.WifiManager wm=(android.net.wifi.WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);wifiLock=wm.createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF,"RhayTransfer:Wifi");wifiLock.acquire();}catch(Exception ignored){}
@@ -74,7 +84,7 @@ public class TransferService extends Service {
                         sendProgress(avg,pct,prog,eta,detail);
                         updateNotification(detail,df.format(avg)+" MB/s • "+prog,pct,true);
                     }
-                });
+                },()->checkpoint());
                 completed++;
                 saveHistory(name,folder,total);
             }
@@ -83,6 +93,7 @@ public class TransferService extends Service {
             stopForeground(false);
             stopSelf();
         }catch(Exception e){
+            if(cancelled){broadcast("cancelled",0,0,"Cancelado","Transferência cancelada","Envio cancelado. O arquivo parcial pode permanecer no PS4.");updateNotification("Transferência cancelada","Envio interrompido pelo usuário",0,false);stopForeground(false);stopSelf();return;}
             String error=e.getMessage()==null?"Erro desconhecido":e.getMessage();
             broadcast("error",0,0,"0%","—","Falha no envio: "+error);
             updateNotification("Falha na transferência",error,0,false);
