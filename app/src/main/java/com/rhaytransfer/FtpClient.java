@@ -56,6 +56,23 @@ public final class FtpClient {
     public void upload(UriSource source, String remotePath, Progress progress) throws IOException {
         String type = command("TYPE I");
         if (!type.startsWith("2")) throw new IOException("Não foi possível ativar modo binário: " + type);
+        int slash = remotePath.lastIndexOf('/');
+        if (slash <= 0 || slash == remotePath.length() - 1)
+            throw new IOException("Caminho de destino inválido: " + remotePath);
+        String directory = remotePath.substring(0, slash);
+        String filename = remotePath.substring(slash + 1);
+        String cwd = command("CWD " + directory);
+        if (!cwd.startsWith("2")) {
+            String parent = directory.substring(0, directory.lastIndexOf('/'));
+            String folder = directory.substring(directory.lastIndexOf('/') + 1);
+            String parentCwd = command("CWD " + parent);
+            if (!parentCwd.startsWith("2"))
+                throw new IOException("PS4 não permite acessar " + directory + ": " + parentCwd);
+            command("MKD " + folder);
+            cwd = command("CWD " + directory);
+            if (!cwd.startsWith("2"))
+                throw new IOException("Não foi possível acessar/criar a pasta " + directory + ": " + cwd);
+        }
         String pasv = command("PASV");
         Matcher m = Pattern.compile("(\\d+),(\\d+),(\\d+),(\\d+),(\\d+),(\\d+)").matcher(pasv);
         if (!m.find()) throw new IOException("O PS4 não informou uma conexão passiva: " + pasv);
@@ -63,7 +80,7 @@ public final class FtpClient {
         int dataPort = Integer.parseInt(m.group(5))*256 + Integer.parseInt(m.group(6));
         Socket data = new Socket();
         data.connect(new InetSocketAddress(dataHost, dataPort), 7000);
-        String stor = command("STOR " + remotePath);
+        String stor = command("STOR " + filename);
         if (!stor.startsWith("1")) { data.close(); throw new IOException("PS4 recusou o envio: " + stor); }
         long total = source.length();
         long sent = 0;
