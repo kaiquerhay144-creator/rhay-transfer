@@ -71,7 +71,7 @@ public class MainActivity extends Activity {
         LinearLayout brand=new LinearLayout(this); brand.setOrientation(1);
         brand.addView(text("PS4 TRANSFER",22,WHITE,true)); TextView sub=text("RHAY • GAMING FILE TRANSFER",9,SILVER,true); sub.setLetterSpacing(.13f); brand.addView(sub);
         top.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
-        TextView ver=text("v2.5",11,SILVER,true); ver.setPadding(dp(12),dp(7),dp(12),dp(7)); ver.setBackground(round(LIGHT,30,SILVER,1)); top.addView(ver); content.addView(top);
+        TextView ver=text("v2.7",11,SILVER,true); ver.setPadding(dp(12),dp(7),dp(12),dp(7)); ver.setBackground(round(LIGHT,30,SILVER,1)); top.addView(ver); content.addView(top);
         space(20);
         LinearLayout hero=card(PANEL); hero.setPadding(dp(17),dp(17),dp(17),dp(17));
         LinearLayout row=new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.addView(text("●  PLAYSTATION 4",10,WHITE,true),new LinearLayout.LayoutParams(0,-2,1)); row.addView(text("REDE LOCAL",9,SILVER,true)); hero.addView(row);
@@ -157,10 +157,53 @@ public class MainActivity extends Activity {
     private void browseDirectory(String host,String path){
         io.execute(()->{FtpClient f=new FtpClient(host,2121);try{f.connectAndLogin();List<FtpClient.RemoteEntry> entries=f.listDirectory(path);main.post(()->{
             ArrayList<String> labels=new ArrayList<>();for(FtpClient.RemoteEntry e:entries)labels.add((e.directory?"📁  ":"📄  ")+e.name);
-            String[] items=labels.toArray(new String[0]);AlertDialog.Builder dlg=new AlertDialog.Builder(this).setTitle("PS4 • "+path).setItems(items,(d,which)->{FtpClient.RemoteEntry e=entries.get(which);if(e.directory)browseDirectory(host,(path.equals("/")?"":path)+"/"+e.name);else toast("Arquivo: "+e.name);});
+            String[] items=labels.toArray(new String[0]);AlertDialog.Builder dlg=new AlertDialog.Builder(this).setTitle("PS4 • "+path).setItems(items,(d,which)->{FtpClient.RemoteEntry e=entries.get(which);if(e.directory)remoteActions(host,path,e);else remoteActions(host,path,e);});
             dlg.setPositiveButton("Usar esta pasta para arquivos comuns",(d,w)->{commonDirectory=path;prefs.edit().putString("common_dir",path).apply();toast("Destino atualizado: "+path);rebuild();});
-            dlg.setNegativeButton("Fechar",null);if(!path.equals("/"))dlg.setNeutralButton("Voltar",(d,w)->{int slash=path.lastIndexOf('/');browseDirectory(host,slash<=0?"/":path.substring(0,slash));});dlg.show();
+            dlg.setNegativeButton("Selecionar para excluir",(d,w)->selectRemoteDeletes(host,path,entries));if(!path.equals("/"))dlg.setNeutralButton("Voltar",(d,w)->{int slash=path.lastIndexOf('/');browseDirectory(host,slash<=0?"/":path.substring(0,slash));});AlertDialog shown=dlg.show();
+            shown.getListView().setOnItemLongClickListener((parent,view,position,id)->{shown.dismiss();remoteActions(host,path,entries.get(position));return true;});
         });}catch(Exception e){main.post(()->toast("Não foi possível listar "+path+": "+e.getMessage()));}finally{f.close();}});
+    }
+    private void remoteActions(String host,String parent,FtpClient.RemoteEntry entry){
+        String target=(parent.equals("/")?"":parent)+"/"+entry.name;
+        ArrayList<String> options=new ArrayList<>();
+        if(entry.directory)options.add("Abrir pasta");
+        if(FtpClient.canDelete(target))options.add("Excluir "+(entry.directory?"pasta vazia":"arquivo"));
+        options.add("Voltar");
+        new AlertDialog.Builder(this).setTitle(entry.name).setItems(options.toArray(new String[0]),(d,w)->{
+            String choice=options.get(w);
+            if(choice.equals("Abrir pasta"))browseDirectory(host,target);
+            else if(choice.startsWith("Excluir"))confirmRemoteDelete(host,parent,Collections.singletonList(entry));
+            else browseDirectory(host,parent);
+        }).show();
+    }
+    private void selectRemoteDeletes(String host,String parent,List<FtpClient.RemoteEntry> entries){
+        ArrayList<FtpClient.RemoteEntry> allowed=new ArrayList<>();
+        for(FtpClient.RemoteEntry e:entries)if(FtpClient.canDelete((parent.equals("/")?"":parent)+"/"+e.name))allowed.add(e);
+        if(allowed.isEmpty()){toast("Nenhum arquivo removível nesta pasta.");browseDirectory(host,parent);return;}
+        String[] labels=new String[allowed.size()];boolean[] checked=new boolean[allowed.size()];
+        for(int i=0;i<allowed.size();i++)labels[i]=(allowed.get(i).directory?"[Pasta vazia] ":"")+allowed.get(i).name;
+        new AlertDialog.Builder(this).setTitle("Selecionar para excluir").setMultiChoiceItems(labels,checked,(d,w,on)->checked[w]=on)
+            .setNegativeButton("Voltar",(d,w)->browseDirectory(host,parent)).setPositiveButton("Continuar",(d,w)->{
+                ArrayList<FtpClient.RemoteEntry> selected=new ArrayList<>();
+                for(int i=0;i<checked.length;i++)if(checked[i])selected.add(allowed.get(i));
+                if(selected.isEmpty())browseDirectory(host,parent);else confirmRemoteDelete(host,parent,selected);
+            }).show();
+    }
+    private void confirmRemoteDelete(String host,String parent,List<FtpClient.RemoteEntry> entries){
+        StringBuilder names=new StringBuilder();
+        for(FtpClient.RemoteEntry e:entries)names.append(e.name).append("\n");
+        new AlertDialog.Builder(this).setTitle("Excluir permanentemente do PS4?")
+            .setMessage(parent+"\n\n"+names+"\nNão há lixeira. Somente pastas vazias podem ser removidas.")
+            .setNegativeButton("Cancelar",(d,w)->browseDirectory(host,parent))
+            .setPositiveButton("EXCLUIR",(d,w)->{
+                if(sending||prefs.getBoolean("transfer_running",false)){toast("Finalize a transferência antes de excluir.");browseDirectory(host,parent);return;}
+                io.execute(()->{FtpClient f=new FtpClient(host,2121);int count=0;String error="";
+                    try{f.connectAndLogin();for(FtpClient.RemoteEntry e:entries){f.deleteRemote((parent.equals("/")?"":parent)+"/"+e.name,e.directory);count++;}}
+                    catch(Exception ex){error="\n"+ex.getMessage();}finally{f.close();}
+                    final String result=count+" de "+entries.size()+" excluído(s)."+error;
+                    main.post(()->{new AlertDialog.Builder(this).setTitle("Resultado").setMessage(result).setPositiveButton("OK",(a,b)->browseDirectory(host,parent)).show();});
+                });
+            }).show();
     }
     private void rebuild(){content.removeAllViews();buildDashboard();}
     private void notifyDone(String title,String message){
