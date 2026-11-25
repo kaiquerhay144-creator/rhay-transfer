@@ -42,5 +42,15 @@ public final class FtpClient {
         ArrayList<RemoteEntry> result=new ArrayList<>();try(BufferedReader r=new BufferedReader(new InputStreamReader(data.getInputStream(),StandardCharsets.UTF_8))){String line;while((line=r.readLine())!=null){String trimmed=line.trim();if(trimmed.isEmpty())continue;String[] parts=trimmed.split("\\s+",9);if(parts.length<9)continue;String name=parts[8];if(name.equals(".")||name.equals(".."))continue;boolean dir=parts[0].startsWith("d");result.add(new RemoteEntry(name,dir));}}finally{data.close();}
         String done=response();if(!done.startsWith("2"))throw new IOException("LIST não concluiu: "+done);return result;
     }
+    public static boolean canDelete(String path){
+        if(path==null || path.contains("\r") || path.contains("\n") || path.contains("\\") || !StandardCharsets.US_ASCII.newEncoder().canEncode(path))return false;
+        for(String part:path.substring(1).split("/",-1))if(part.isEmpty()||part.equals(".")||part.equals(".."))return false;
+        return path.startsWith("/data/pkg/") || path.startsWith("/data/Rhay Transfer/");
+    }
+    public void deleteRemote(String path,boolean directory)throws IOException{
+        if(!canDelete(path))throw new IOException("Pasta protegida ou nome incompatível.");
+        String reply=command((directory?"RMD ":"DELE ")+path);
+        if(!reply.startsWith("2"))throw new IOException("PS4 recusou a exclusão: "+reply);
+    }
     public void close(){try{if(control!=null&&control.isConnected())command("QUIT");}catch(Exception ignored){}try{if(control!=null)control.close();}catch(Exception ignored){}}
 }
