@@ -52,5 +52,29 @@ public final class FtpClient {
         String reply=command((directory?"RMD ":"DELE ")+path);
         if(!reply.startsWith("2"))throw new IOException("PS4 recusou a exclusão: "+reply);
     }
+    public void moveRemote(String from,String to)throws IOException{
+        if(!canDelete(from)||!canDelete(to)||from.equals(to))throw new IOException("Caminho protegido ou inválido.");
+        ensureAbsent(to);
+        String a=command("RNFR "+from);if(!a.startsWith("3"))throw new IOException(a);
+        String b=command("RNTO "+to);if(!b.startsWith("2"))throw new IOException(b);
+    }
+    private void ensureAbsent(String path)throws IOException{
+        int i=path.lastIndexOf('/');for(RemoteEntry e:listDirectory(path.substring(0,i)))if(e.name.equals(path.substring(i+1)))throw new IOException("Destino já existe.");
+    }
+    public void copyRemote(String from,String to,Progress progress)throws IOException{
+        if(!canDelete(from)||!canDelete(to)||from.equals(to))throw new IOException("Caminho protegido ou inválido.");
+        ensureAbsent(to);
+        FtpClient source=new FtpClient(host,port);
+        try{
+            source.connectAndLogin();
+            if(!source.command("TYPE I").startsWith("2"))throw new IOException("TYPE I recusado");
+            Socket data=source.dataSocket(source.command("PASV"));
+            try{
+                String reply=source.command("RETR "+from);if(!reply.startsWith("1"))throw new IOException(reply);
+                upload(new UriSource(){public InputStream open()throws IOException{return data.getInputStream();}public long length(){return -1;}},to,progress,null);
+            }finally{data.close();}
+            if(!source.response().startsWith("2"))throw new IOException("Leitura incompleta; confira o destino.");
+        }finally{source.close();}
+    }
     public void close(){try{if(control!=null&&control.isConnected())command("QUIT");}catch(Exception ignored){}try{if(control!=null)control.close();}catch(Exception ignored){}}
 }
