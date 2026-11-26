@@ -60,6 +60,12 @@ public class MainActivity extends Activity {
         sending=prefs.getBoolean("transfer_running",false);pausedUi=prefs.getBoolean("transfer_paused",false);
         getWindow().setStatusBarColor(BG); getWindow().setNavigationBarColor(BG);
         buildDashboard();
+        android.widget.FrameLayout splash=new android.widget.FrameLayout(this);
+        splash.setBackgroundColor(BG);
+        ImageView logo=new ImageView(this);logo.setImageResource(R.drawable.ic_launcher_gamer);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        android.widget.FrameLayout.LayoutParams lp=new android.widget.FrameLayout.LayoutParams(dp(240),dp(240),Gravity.CENTER);splash.addView(logo,lp);
+        addContentView(splash,new android.view.ViewGroup.LayoutParams(-1,-1));
+        main.postDelayed(()->{if(splash.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)splash.getParent()).removeView(splash);},2000);
         createNotificationChannel();
         if(Build.VERSION.SDK_INT>=33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},2020);
     }
@@ -71,7 +77,7 @@ public class MainActivity extends Activity {
         LinearLayout brand=new LinearLayout(this); brand.setOrientation(1);
         brand.addView(text("PS4 TRANSFER",22,WHITE,true)); TextView sub=text("RHAY • GAMING FILE TRANSFER",9,SILVER,true); sub.setLetterSpacing(.13f); brand.addView(sub);
         top.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
-        TextView ver=text("v2.7",11,SILVER,true); ver.setPadding(dp(12),dp(7),dp(12),dp(7)); ver.setBackground(round(LIGHT,30,SILVER,1)); top.addView(ver); content.addView(top);
+        TextView ver=text("v2.8",11,SILVER,true); ver.setPadding(dp(12),dp(7),dp(12),dp(7)); ver.setBackground(round(LIGHT,30,SILVER,1)); top.addView(ver); content.addView(top);
         space(20);
         LinearLayout hero=card(PANEL); hero.setPadding(dp(17),dp(17),dp(17),dp(17));
         LinearLayout row=new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.addView(text("●  PLAYSTATION 4",10,WHITE,true),new LinearLayout.LayoutParams(0,-2,1)); row.addView(text("REDE LOCAL",9,SILVER,true)); hero.addView(row);
@@ -168,12 +174,28 @@ public class MainActivity extends Activity {
         ArrayList<String> options=new ArrayList<>();
         if(entry.directory)options.add("Abrir pasta");
         if(FtpClient.canDelete(target))options.add("Excluir "+(entry.directory?"pasta vazia":"arquivo"));
+        if(FtpClient.canDelete(target)){options.add("Mover");if(!entry.directory)options.add("Copiar");}
         options.add("Voltar");
         new AlertDialog.Builder(this).setTitle(entry.name).setItems(options.toArray(new String[0]),(d,w)->{
             String choice=options.get(w);
             if(choice.equals("Abrir pasta"))browseDirectory(host,target);
             else if(choice.startsWith("Excluir"))confirmRemoteDelete(host,parent,Collections.singletonList(entry));
+            else if(choice.equals("Mover")||choice.equals("Copiar"))chooseDestination(host,parent,target,entry.name,choice.equals("Mover"),"/data");
             else browseDirectory(host,parent);
+        }).show();
+    }
+    private void chooseDestination(String host,String origin,String source,String name,boolean move,String path){
+        io.execute(()->{FtpClient f=new FtpClient(host,2121);try{f.connectAndLogin();List<FtpClient.RemoteEntry> entries=f.listDirectory(path);ArrayList<String> dirs=new ArrayList<>();for(FtpClient.RemoteEntry e:entries)if(e.directory)dirs.add(e.name);
+            main.post(()->{AlertDialog.Builder b=new AlertDialog.Builder(this).setTitle("Destino: "+path).setItems(dirs.toArray(new String[0]),(d,w)->chooseDestination(host,origin,source,name,move,path+"/"+dirs.get(w))).setNegativeButton("Cancelar",(d,w)->browseDirectory(host,origin));
+                if(!path.equals("/data"))b.setNeutralButton("Voltar",(d,w)->chooseDestination(host,origin,source,name,move,path.substring(0,path.lastIndexOf('/'))));
+                if(FtpClient.canDelete(path+"/"+name))b.setPositiveButton("Colar aqui",(d,w)->executeRemotePaste(host,origin,source,path+"/"+name,move));b.show();});
+        }catch(Exception e){main.post(()->toast(e.getMessage()));}finally{f.close();}});
+    }
+    private void executeRemotePaste(String host,String origin,String source,String target,boolean move){
+        if(sending||prefs.getBoolean("transfer_running",false)){toast("Finalize o envio atual.");return;}
+        new AlertDialog.Builder(this).setTitle(move?"Mover arquivo ou pasta?":"Copiar arquivo?").setMessage(source+" → "+target).setNegativeButton("Cancelar",null).setPositiveButton("Confirmar",(d,w)->{
+            android.app.ProgressDialog p=new android.app.ProgressDialog(this);p.setMessage("Processando...");p.setCancelable(false);p.show();
+            io.execute(()->{FtpClient f=new FtpClient(host,2121);String result="Concluído";try{f.connectAndLogin();if(move)f.moveRemote(source,target);else f.copyRemote(source,target,(n,t)->main.post(()->p.setMessage("Copiando: "+human(n))));}catch(Exception e){result="Falha: "+e.getMessage();}finally{f.close();}final String msg=result;main.post(()->{p.dismiss();toast(msg);browseDirectory(host,origin);});});
         }).show();
     }
     private void selectRemoteDeletes(String host,String parent,List<FtpClient.RemoteEntry> entries){
