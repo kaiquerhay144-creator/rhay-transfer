@@ -61,8 +61,8 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(BG); getWindow().setNavigationBarColor(BG);
         buildDashboard();
         android.widget.FrameLayout splash=new android.widget.FrameLayout(this);
-        splash.setBackgroundColor(BG);
-        ImageView logo=new ImageView(this);logo.setImageResource(R.drawable.ic_launcher_gamer);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        splash.setBackgroundColor(Color.BLACK);
+        ImageView logo=new ImageView(this);logo.setImageResource(R.mipmap.ic_launcher);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         android.widget.FrameLayout.LayoutParams lp=new android.widget.FrameLayout.LayoutParams(dp(240),dp(240),Gravity.CENTER);splash.addView(logo,lp);
         addContentView(splash,new android.view.ViewGroup.LayoutParams(-1,-1));
         main.postDelayed(()->{if(splash.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)splash.getParent()).removeView(splash);},2000);
